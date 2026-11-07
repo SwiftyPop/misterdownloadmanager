@@ -13,16 +13,81 @@ Everything below ships together, in one release, as version 0.3.0.
 
 ### Done
 
+- ✅ Linux: the guide says what uninstalling leaves in each user's home folder (the browsers' host
+  files, the list and settings) and how to remove it; a package can't
+  ([#266](https://github.com/anefzaoui/misterdownloadmanager/issues/266))
+- ✅ Linux: menus and drop-down lists open under what was clicked on tiling compositors (sway)
+  too, through XWayland, as on GNOME and KDE
+  ([#267](https://github.com/anefzaoui/misterdownloadmanager/issues/267))
+- ✅ Linux: a library the window needs that the system lacks (libxkbcommon-x11 and the other X11
+  ones, from the tar.gz and the AppImage) is named at start, on the terminal and in a message box,
+  with the command that installs it, instead of a crash; in a Wayland session the window opens
+  on Wayland instead ([#265](https://github.com/anefzaoui/misterdownloadmanager/issues/265))
+- ✅ Linux: plain HTTP downloads work on a system without CA certificates, and HTTPS ones say to
+  install them ([#264](https://github.com/anefzaoui/misterdownloadmanager/issues/264))
+- ✅ Update now finds the Linux and macOS release files whether or not their names end in
+  "-experimental"
+- ✅ Linux packages checked in clean Ubuntu 24.04, Debian 12 and Fedora 45 systems: install, the
+  command line, the window, the desktop entry and icon, browser integration and uninstall; the
+  .deb and .rpm now bring the keyboard library MDM's window needs under X11 and the CA
+  certificates downloads need, and require the glibc their programs were built for (part of
+  [#164](https://github.com/anefzaoui/misterdownloadmanager/issues/164))
+- ✅ Options → Proxy's Get System and the Scheduler's "when done" drop-down fit in the last
+  languages that still cut them (Bulgarian, Armenian, Macedonian, Tamil; Greek, Malayalam, and
+  six the translation review lengthened), and the Proxy
+  page's title no longer runs over its icon or past the window's edge in Greek, Finnish, Catalan
+  and a few more: a title too long for one line beside Get System takes two
+  ([#192](https://github.com/anefzaoui/misterdownloadmanager/issues/192))
+- ✅ Linux: galleries work with the gallery-dl the distribution ships (Ubuntu 24.04's 1.26.9
+  failed at once): MDM passes only the options that release accepts, from 1.20 on, and an older
+  one gives way to MDM's own copy, saying why; the lab's test streams are real ones, which ffmpeg
+  6.1 and 8 download to the end
+  ([#236](https://github.com/anefzaoui/misterdownloadmanager/issues/236))
+- ✅ Run MDM on a server without a window (Docker, Unraid, any Linux machine), and send it
+  downloads from the phone or the browser extension
+  ([#157](https://github.com/anefzaoui/misterdownloadmanager/issues/157))
+- ✅ Better translations in every language: each language has a style guide and the terms its
+  reviewers settled, and every machine translation of the program and the website was reviewed
+  again against them
+- ✅ Linux: browser integration reaches Brave Origin (and the Beta, Dev and Nightly versions of
+  Brave, Chrome and Edge, and Vivaldi's snapshot); on macOS Brave is set up where it reads it,
+  Chrome's folder. From the AppImage, the helper program the browsers start is copied out
+  reliably, even while a browser still runs the old one, and put back at each start if it went
+  missing; Test browser integration says when it is missing, or why setting it up failed
+  ([#253](https://github.com/anefzaoui/misterdownloadmanager/issues/253))
+- ✅ The extension's popup shows **Open Mister Download Manager** whole: it was cut to "Open Mister
+  Do…" on Linux and in longer languages; Options moves below it when both don't fit on one line
+  (part of [#164](https://github.com/anefzaoui/misterdownloadmanager/issues/164))
+- ✅ The crash report window's status line (such as "The symbols couldn't be fetched: …") stays
+  inside the window: cut with "…" at its margin and shown whole under the pointer; its title is
+  in MDM's language, and its title bar in MDM's light or dark (part of
+  [#164](https://github.com/anefzaoui/misterdownloadmanager/issues/164))
+- ✅ Control MDM from a phone or another computer on the local network: **Options → Remote**, off
+  by default; a paired device adds links, magnets and torrents, sees the list and pauses, starts
+  and removes downloads ([#141](https://github.com/anefzaoui/misterdownloadmanager/issues/141))
+- ✅ Linux: moving the pointer from an open submenu back onto its menu, or to another item, closes
+  only the submenu, not the whole menu
+  ([#250](https://github.com/anefzaoui/misterdownloadmanager/issues/250))
 - ✅ Download File Info's Preview, Options → Proxy's Get System and the Scheduler's "when done"
   drop-down fit their translated text (Russian and others), after #212
   ([#192](https://github.com/anefzaoui/misterdownloadmanager/issues/192))
 - ✅ A menu of the menu bar shut with Escape opens again at the first click on its title (on
   Linux it took two; on Windows, Escape with the pointer on the title left the menu open)
+- ✅ Signed-in videos from YouTube Music and YouTube's mobile site: the browser's cookies reach
+  the YouTube host yt-dlp asks, each for the domain the browser keeps it for
+  ([#229](https://github.com/anefzaoui/misterdownloadmanager/issues/229))
 - ✅ Cookies for video sites: yt-dlp can read a browser's cookies on this computer (Firefox,
   Chrome, Edge, Brave, Opera, Vivaldi, Chromium, Whale; Safari on macOS), so a pasted YouTube
   link that asks to "confirm you're not a bot" works when you're signed in there; and the button
   over videos now passes the page's cookies to the download as well as to the look-up
   ([#229](https://github.com/anefzaoui/misterdownloadmanager/issues/229))
+- ✅ When the browser keeps a download, MDM says why: each one is in MDM's log with the setting
+  that decided, and the extension's button shows the last one. The extension from the Chrome Web
+  Store needs MDM 0.3.0 (0.2.x serves only the copy in MDM's folder)
+  ([#208](https://github.com/anefzaoui/misterdownloadmanager/issues/208))
+- ✅ More file types taken from the browser by default: DMG, PKG, DEB, RPM, APPIMAGE, MSIX, APPX,
+  CAB, JAR, XZ, ZST, WEBM, FLAC, OPUS and others; a list never edited gains them
+  ([#208](https://github.com/anefzaoui/misterdownloadmanager/issues/208))
 - ✅ The window no longer freezes on Linux when the system's sleep service (logind) or keyring
   (Secret Service) is slow or doesn't answer: keeping the computer awake for a woken queue is
   asked in the background, a keyring that doesn't answer at start is waited for once instead of
@@ -110,6 +175,10 @@ Everything below ships together, in one release, as version 0.3.0.
   ([#45](https://github.com/anefzaoui/misterdownloadmanager/issues/45))
 - ✅ Themes: Breeze, KDE Plasma's look (its focus frame, check boxes, buttons and title bar on
   Windows, KDE's Breeze icons)
+  ([#45](https://github.com/anefzaoui/misterdownloadmanager/issues/45))
+- ✅ Themes: Luna, Aero and Aqua, the looks of Windows XP, Windows 7 and Mac OS X (shaded and
+  glossy buttons, their check boxes and progress bars, their title bars on Windows, icons drawn
+  for MDM); Metro, Adwaita and Breeze get MDM's own icons where theirs had none
   ([#45](https://github.com/anefzaoui/misterdownloadmanager/issues/45))
 - ✅ Dark mode: grey notes and error texts readable (4.5:1), Options' failed checks no longer dark
   red on the dark dialog ([#45](https://github.com/anefzaoui/misterdownloadmanager/issues/45))
@@ -286,15 +355,20 @@ Everything below ships together, in one release, as version 0.3.0.
   inside the page ([#169](https://github.com/anefzaoui/misterdownloadmanager/issues/169))
 - ✅ Help opens the website's help pages, in the interface language when the website has it
   ([#227](https://github.com/anefzaoui/misterdownloadmanager/issues/227))
+- ✅ Website: a page for every feature, old and new, with its real window, where it is in the app
+  and what it can't do yet; tiles of them all on the home page; and a
+  [Themes](https://misterdownloadmanager.com/themes.html) page with every built-in theme, light and
+  dark, and how to make, try and share your own
+  ([#260](https://github.com/anefzaoui/misterdownloadmanager/issues/260))
 
 ### Being built
 
 - 🔄 Themes ([#45](https://github.com/anefzaoui/misterdownloadmanager/issues/45)): today's look stays the default. Every colour, size and spacing now
   comes from the chosen theme (the classic look pixel for pixel the same); **View → Theme** with
   Classic, Native (follows the system's accent and contrast on Windows, Linux and macOS) and High
-  contrast; then style themes with their own control shapes, a drawn title bar on Windows and their
-  own icons: Metro first, then Adwaita and Breeze, then Luna, Aero and Aqua with icons drawn for
-  MDM. Theme files can be added by anyone, and Base16 and pywal schemes imported
+  contrast; style themes with their own control shapes, a drawn title bar on Windows and their own
+  icons: Metro, Adwaita, Breeze, Luna, Aero and Aqua (all six in). Next: theme files can be added
+  by anyone, and Base16 and pywal schemes imported
 - 🔄 Linux supported like Windows, no longer experimental: every change is now checked on Ubuntu
   (GNOME) as well as Windows, then on KDE, Cinnamon and Xfce ([#164](https://github.com/anefzaoui/misterdownloadmanager/issues/164))
 - 🔄 Before the release: every screenshot taken again on Windows and Linux (smaller files, WebP),
@@ -320,10 +394,6 @@ Everything below ships together, in one release, as version 0.3.0.
 
 ### Network
 
-- 📋 Control MDM from a phone or another computer on the local network, off by default
-  ([#141](https://github.com/anefzaoui/misterdownloadmanager/issues/141))
-- 📋 Run MDM headless on a server (Docker, Unraid) and send it downloads from the browser
-  ([#157](https://github.com/anefzaoui/misterdownloadmanager/issues/157))
 
 ### Browser extension
 

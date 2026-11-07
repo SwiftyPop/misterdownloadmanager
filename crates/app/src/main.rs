@@ -19,6 +19,7 @@ mod fileicons;
 mod find;
 mod gallerydlg;
 mod grabber;
+mod headless;
 mod help;
 mod helpers;
 mod i18n;
@@ -38,6 +39,7 @@ mod properties;
 mod queue;
 mod quota;
 mod regional;
+mod remote;
 mod renderer;
 mod rss;
 mod rssdlg;
@@ -218,6 +220,11 @@ fn main() -> std::process::ExitCode {
     if std::env::args().nth(1).as_deref() == Some("--forget-sign-ins") {
         return secrets::forget_all();
     }
+    // A server (#157): the app without a window.
+    let all: Vec<String> = std::env::args().skip(1).collect();
+    if headless::asked(&all) {
+        return headless::main(all);
+    }
     match app() {
         Ok(()) => std::process::ExitCode::SUCCESS,
         // As `main` returning the error would.
@@ -291,11 +298,14 @@ fn app() -> eframe::Result {
     }
     let window: std::sync::Arc<std::sync::OnceLock<egui::Context>> = Default::default();
     let wake = window.clone();
-    let _ = mdm_ipc::serve(tx, move || {
+    let wake: std::sync::Arc<dyn Fn() + Send + Sync> = std::sync::Arc::new(move || {
         if let Some(ctx) = wake.get() {
             ctx.request_repaint();
         }
     });
+    // The remote control (#141) sends its commands down the same channel.
+    let sink = mdm_ipc::Sink::new(tx.clone(), wake.clone());
+    let _ = mdm_ipc::serve(tx, move || wake());
 
     // Downloads run on a Tokio runtime; the UI thread only reads snapshots.
     let rt = tokio::runtime::Runtime::new().expect("tokio runtime");
@@ -324,6 +334,23 @@ fn app() -> eframe::Result {
                 loaded.settings.dark_mode_support,
             ),
         );
+    }
+    // Linux: the libraries the window loads when it opens (#265). Without them it can't open
+    // (winit stopped at start): MDM says what's missing, in its language, and how to install it.
+    #[cfg(target_os = "linux")]
+    {
+        i18n::set_lang(loaded.settings.language.as_deref());
+        let ws = unix::window_system();
+        if !ws.missing.is_empty() {
+            crash::clean_exit();
+            unix::tell_window_failed(&unix::missing_text(&ws.missing, true));
+            std::process::exit(1);
+        }
+        if !ws.x11_missing.is_empty() {
+            let text = unix::missing_text(&ws.x11_missing, false);
+            eprintln!("{text}");
+            tracing::warn!("{text}");
+        }
     }
     // Secrets from before (sealed, or kept as they were) go to the system's keychain now; the
     // list is saved with their references once it holds them (secrets.rs, #44).
@@ -368,7 +395,7 @@ fn app() -> eframe::Result {
         viewport: viewport.clone(),
         // Linux: X11 (XWayland) over Wayland when both are there, so menus open where clicked.
         #[cfg(target_os = "linux")]
-        event_loop_builder: unix::prefer_x11(),
+        event_loop_builder: unix::event_loop_hook(),
         ..Default::default()
     };
     let result = renderer::run("misterdownloadmanager", &plan, options, move |cc| {
@@ -376,7 +403,7 @@ fn app() -> eframe::Result {
             cc.egui_ctx.set_zoom_factor(z);
         }
         let _ = window.set(cc.egui_ctx.clone());
-        app::App::new(cc, handle, commands, loaded, start)
+        app::App::new(&cc.egui_ctx, handle, commands, sink, loaded, start)
     });
     crash::clean_exit();
     result

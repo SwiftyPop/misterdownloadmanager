@@ -119,6 +119,39 @@
   "popup_fix": {
     "message": "እንዴት ማስተካከል ይቻላል"
   },
+  "popup_declined": {
+    "message": "ወደ አሳሹ የተተወው: $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "setup.png"
+      }
+    }
+  },
+  "popup_declined_unnamed": {
+    "message": "የመጨረሻው ማውረድ ወደ አሳሹ ተተወ።"
+  },
+  "declined_file_type": {
+    "message": "አይነቱ በአማራጮች → የፋይል አይነቶች ውስጥ የለም።"
+  },
+  "declined_site": {
+    "message": "ጣቢያው በአማራጮች → የፋይል አይነቶች፣ ወደ አሳሹ በተተዉ ጣቢያዎች ውስጥ ይገኛል።"
+  },
+  "declined_address": {
+    "message": "አድራሻው በአማራጮች → የፋይል አይነቶች፣ ወደ አሳሹ በተተዉ አድራሻዎች ውስጥ ይገኛል።"
+  },
+  "declined_small": {
+    "message": "በአማራጮች → የፋይል አይነቶች ውስጥ ካለው ዝቅተኛው መጠን ያነሰ ነው።"
+  },
+  "declined_browser": {
+    "message": "ይህ አሳሽ በአማራጮች → አጠቃላይ ውስጥ ምልክት አልተደረገበትም።"
+  },
+  "declined_integration_off": {
+    "message": "የላቀ የአሳሽ ውህደትን ተጠቀም በአማራጮች → አጠቃላይ ውስጥ ጠፍቷል።"
+  },
+  "declined_site_access": {
+    "message": "ቅጥያው ይህንን ጣቢያ ለማንበብ አልተፈቀደለትም (የአሳሹ የጣቢያ መዳረሻ)።"
+  },
   "popup_alt": {
     "message": "አሳሹ እንዲያወርደው አገናኝ ላይ ጠቅ ሲያደርጉ Altን ይያዙ።"
   },
@@ -142,5 +175,56 @@
   },
   "video_drm": {
     "message": "የተጠበቀ ቪዲዮ: ማስቀመጥ አይቻልም"
+  },
+  "popup_send_to": {
+    "message": "ውርዶችን ወደ"
+  },
+  "popup_send_here": {
+    "message": "ይህ ኮምፒውተር"
+  },
+  "popup_send_remote": {
+    "message": "ሌላ Mister Download Manager (አገልጋይ)"
+  },
+  "popup_remote_code": {
+    "message": "የማጣመሪያ ኮድ"
+  },
+  "popup_remote_open": {
+    "message": "ክፈት"
+  },
+  "popup_remote_pair": {
+    "message": "ያጣምሩ"
+  },
+  "popup_remote_help": {
+    "message": "አድራሻውን አንድ ጊዜ ይክፈቱ እና የምስክር ወረቀቱን ይቀበሉ፣ ከዚያ ከ Options, Remote, Pair a device (ወይም misterdownloadmanager-cli pair) ኮድ ያስገቡ።"
+  },
+  "status_remote": {
+    "message": "ውርዶች ወደ $address$ ይሄዳሉ",
+    "placeholders": {
+      "address": {
+        "content": "$1",
+        "example": "https://192.168.1.10:8463/"
+      }
+    }
+  },
+  "remote_address": {
+    "message": "የእሱን https:// አድራሻ ያስገቡ።"
+  },
+  "remote_unreachable": {
+    "message": "አልተደረሰም። አድራሻውን በዚህ አሳሽ ውስጥ አንድ ጊዜ ይክፈቱ እና የምስክር ወረቀቱን ይቀበሉ፣ ከዚያ እንደገና ይሞክሩ።"
+  },
+  "remote_wrong_code": {
+    "message": "የተሳሳተ ኮድ።"
+  },
+  "remote_no_code": {
+    "message": "አሁን ምንም ኮድ አያሳይም፡ መጀመሪያ እዚያ ላይ መሳሪያ ያጣምሩ የሚለውን ጠቅ ያድርጉ።"
+  },
+  "remote_too_soon": {
+    "message": "ትንሽ ይጠብቁ፣ ከዚያ እንደገና ይሞክሩ።"
+  },
+  "remote_failed": {
+    "message": "አልሰራም። እንደገና ይሞክሩ።"
+  },
+  "remote_device_name": {
+    "message": "የአሳሽ ቅጥያ"
   }
 }

@@ -31,8 +31,9 @@ mod win32;
 const HOST_NAME: &str = "com.misterdownloadmanager.host";
 use mdm_ipc::extension::{FIREFOX_ID, STORE_ID, STORE_UPDATE_URL, chromium_ids, store_id};
 /// Where each Chromium browser looks for native messaging hosts on Windows, under HKCU (one
-/// user) or HKLM (everyone). Chromium-branded builds (Chromium, Helium, Thorium) read
-/// Chromium's first, then Chrome's, as most other forks do (Chromium's launch_context_win.cc).
+/// user) or HKLM (everyone). Chromium-branded builds (Chromium, Helium, Thorium, and Brave and
+/// Brave Origin with every channel) read Chromium's first, then Chrome's, as most other forks do
+/// (Chromium's launch_context_win.cc). Brave's own key is kept for builds that read it.
 #[cfg(windows)]
 const REGISTRY_KEYS: [&str; 4] = [
     r"Software\Google\Chrome\NativeMessagingHosts",
@@ -62,6 +63,9 @@ struct Message {
     url: String,
     referrer: Option<String>,
     cookies: Option<String>,
+    /// The same cookies with their domains and flags (`mdm_ipc::Command::cookie_jar`); an older
+    /// extension sends none.
+    cookie_jar: Vec<mdm_ipc::BrowserCookie>,
     user_agent: Option<String>,
     /// `navigator.userAgentData` brands: Brave and Opera name themselves there, not in the
     /// User-Agent; Firefox's forks add the name `runtime.getBrowserInfo` gives ("Zen").
@@ -105,6 +109,20 @@ struct Message {
     exclude_site: Option<String>,
     /// The toolbar button: bring Mister Download Manager's window up.
     open: bool,
+    /// The extension left a download to the browser by Options' rules (it has them from
+    /// `rules`) without asking about it: for MDM's log. Under its own key, with no `url`: an
+    /// older host takes it for an address it can't download, and hands nothing over.
+    declined: Option<Notice>,
+}
+
+/// A download the extension left to the browser: why (a `Declined` code, or `site-access`:
+/// the browser doesn't let it read the site), its site and file name.
+#[derive(Debug, Default, Deserialize, PartialEq)]
+#[serde(default)]
+struct Notice {
+    why: String,
+    site: String,
+    name: String,
 }
 
 #[derive(Default, Serialize)]
@@ -138,6 +156,13 @@ struct Reply {
     /// For `rules`: files smaller than this (KB) stay with the browser.
     #[serde(skip_serializing_if = "Option::is_none")]
     min_kb: Option<u64>,
+    /// For `rules` when `capture` is false: why (`integration-off`, `browser`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    capture_off: Option<&'static str>,
+    /// A download left to the browser by Options: which rule (a `Declined` code), for the
+    /// extension to say (its popup).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    declined: Option<&'static str>,
 }
 
 impl Reply {
@@ -196,8 +221,13 @@ fn answer(m: Message, rules: &mdm_ipc::capture::CaptureRules) -> Reply {
             excluded_addresses: Some(rules.excluded_addresses.clone()),
             opened: Some(rules.capture_opened),
             min_kb: Some(rules.capture_min_kb),
+            capture_off: rules.capture_off(browser).map(|d| d.code()),
             ..Default::default()
         };
+    }
+    if let Some(n) = &m.declined {
+        log_left(browser, &n.site, &n.name, notice_reason(&n.why), m.private);
+        return Reply::done();
     }
     // The video button: asked about, clicked, its menu. What it sends goes to the app (started
     // if need be), which opens its window or keeps the setting.
@@ -272,12 +302,91 @@ fn answer(m: Message, rules: &mdm_ipc::capture::CaptureRules) -> Reply {
         return Reply::failed("refused", "not an http(s) or ftp(s) URL");
     }
     if let Err(why) = verdict(&m, rules) {
-        return Reply::failed(
-            "options",
-            format!("left to the browser by Options ({why:?})"),
-        );
+        let site = mdm_ipc::capture::host_of(&m.url);
+        log_left(browser, &site, &file_name_of(&m), why.reason(), m.private);
+        return Reply {
+            declined: Some(why.code()),
+            ..Reply::failed(
+                "options",
+                format!("left to the browser by Options ({why:?})"),
+            )
+        };
     }
     delivered(&to_command(m))
+}
+
+/// Why the extension left a download alone, from its notice's code.
+fn notice_reason(code: &str) -> String {
+    match mdm_ipc::capture::Declined::from_code(code) {
+        Some(d) => d.reason().to_owned(),
+        None if code == "site-access" => {
+            "the browser doesn't let the extension read this site (its site access is limited)"
+                .to_owned()
+        }
+        None => format!("{:?}", clean(code, 32)),
+    }
+}
+
+/// `s` for one line of the log: no line breaks or other control characters, at most `max`
+/// characters.
+fn clean(s: &str, max: usize) -> String {
+    s.chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .take(max)
+        .collect()
+}
+
+/// The log line for a download left to the browser. A private window's site and file name are
+/// left out: the log outlives the window.
+fn left_line(browser: &str, site: &str, name: &str, reason: &str, private: bool) -> String {
+    let browser = if browser.is_empty() {
+        "a browser"
+    } else {
+        browser
+    };
+    let what = if private {
+        "a download from a private window".to_owned()
+    } else {
+        match (clean(name, 200), clean(site, 200)) {
+            (n, s) if n.trim().is_empty() && s.trim().is_empty() => "a download".to_owned(),
+            (n, s) if s.trim().is_empty() => n,
+            (n, s) if n.trim().is_empty() => format!("a download from {s}"),
+            (n, s) => format!("{n} from {s}"),
+        }
+    };
+    format!("browser integration: {browser} keeps {what}: {reason}")
+}
+
+fn log_left(browser: &str, site: &str, name: &str, reason: impl AsRef<str>, private: bool) {
+    log_line(&left_line(browser, site, name, reason.as_ref(), private));
+}
+
+/// A line in MDM's log (`<data>/logs/mdm.log`, crates/crash/src/logs.rs), dated as the app's
+/// own lines: the host runs apart from the app, which may not be running at all. Appended
+/// whole, so it never splits a line the app writes at the same time.
+fn log_line(message: &str) {
+    // Unit tests run without a data folder of their own: never into the real MDM's log
+    // (tests/host.rs runs the program with its own and reads what it wrote).
+    if cfg!(test) {
+        return;
+    }
+    let Some(dir) = mdm_ipc::data_dir().map(|d| d.join("logs")) else {
+        return;
+    };
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    let line = format!(
+        "{}  INFO nmhost mdm_nmhost: {message}\n",
+        chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.6fZ")
+    );
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join("mdm.log"))
+    {
+        let _ = f.write_all(line.as_bytes());
+    }
 }
 
 /// The Download video window's command for a video message: the page, or the video's own file
@@ -310,6 +419,7 @@ fn video_command(
         video_page: Some(src.unwrap_or_else(|| m.url.clone())),
         referer,
         cookies: m.cookies.clone().filter(|c| !c.is_empty()),
+        cookie_jar: m.cookie_jar.clone(),
         user_agent: m.user_agent.clone(),
         private: m.private,
         ..Default::default()
@@ -390,6 +500,7 @@ fn to_command(m: Message) -> mdm_ipc::Command {
         name,
         referer: some(m.referrer),
         cookies: some(m.cookies),
+        cookie_jar: m.cookie_jar,
         user_agent: m.user_agent,
         size: m.size.filter(|s| *s > 0),
         mime: some(m.mime),
@@ -753,9 +864,26 @@ fn chrome_external_dir(all_users: bool) -> Option<PathBuf> {
     chrome.exists().then_some(dir)
 }
 
+/// Linux: this program runs from inside an AppImage's mount (`APPDIR`), which is gone once the
+/// AppImage quits: a manifest naming it would name a program that no longer exists (#253). The
+/// app registers a copy outside it instead (unix.rs).
+#[cfg(not(windows))]
+fn mount_refused() -> Result<(), String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    match std::env::var_os("APPDIR").map(PathBuf::from) {
+        Some(mount) if !mount.as_os_str().is_empty() && exe.starts_with(&mount) => Err(format!(
+            "{} is inside the AppImage's mount, which is gone once it quits: register a copy \
+             outside it",
+            exe.display()
+        )),
+        _ => Ok(()),
+    }
+}
+
 #[cfg(not(windows))]
 fn register(all_users: bool) -> Result<(), String> {
     portable_refused()?;
+    mount_refused()?;
     let (chromium, firefox) = (chromium_manifest()?, firefox_manifest()?);
     let dirs = host_dirs(all_users);
     // One browser's folder that can't be written doesn't keep the others from theirs.
@@ -956,6 +1084,13 @@ mod tests {
             url: "https://www.quiet.test/watch".into(),
             src: Some("https://cdn.test/v/master.m3u8?t=1".into()),
             cookies: Some("cdn=1".into()),
+            cookie_jar: vec![mdm_ipc::BrowserCookie {
+                name: "cdn".into(),
+                value: "1".into(),
+                domain: ".cdn.test".into(),
+                path: "/".into(),
+                ..Default::default()
+            }],
             user_agent: Some(ua.into()),
             ..Default::default()
         };
@@ -966,6 +1101,10 @@ mod tests {
         );
         assert_eq!(cmd.referer.as_deref(), Some("https://www.quiet.test/watch"));
         assert_eq!(cmd.cookies.as_deref(), Some("cdn=1"));
+        assert_eq!(
+            cmd.cookie_jar, listed.cookie_jar,
+            "each cookie with its domain"
+        );
         assert_eq!(cmd.user_agent.as_deref(), Some(ua));
         // Never a page that isn't on the web.
         let local = Message {
@@ -1068,6 +1207,102 @@ mod tests {
     }
 
     #[test]
+    fn a_refusal_says_which_rule() {
+        let rules = mdm_ipc::capture::CaptureRules {
+            browsers: vec![("Microsoft Edge".into(), false)],
+            ..Default::default()
+        };
+        let ua = "Mozilla/5.0 (Windows NT 10.0) Chrome/141.0.0.0 Safari/537.36";
+        let msg = |url: &str, name: &str, ua: &str| Message {
+            url: url.into(),
+            filename: Some(name.into()),
+            user_agent: Some(ua.into()),
+            ..Default::default()
+        };
+        let r = answer(msg("https://x.test/p.png", "p.png", ua), &rules);
+        assert_eq!(
+            (r.ok, r.why, r.declined),
+            (false, Some("options"), Some("file-type"))
+        );
+        // The words older extensions read stay as they were.
+        assert_eq!(
+            r.error.as_deref(),
+            Some("left to the browser by Options (FileType)")
+        );
+        let edge = "Mozilla/5.0 (Windows NT 10.0) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0";
+        let r = answer(msg("https://x.test/a.zip", "a.zip", edge), &rules);
+        assert_eq!(r.declined, Some("browser"));
+        let json = serde_json::to_string(&r).unwrap();
+        assert!(json.contains(r#""declined":"browser""#), "{json}");
+        // The rules say why nothing is taken from this browser.
+        let hello = Message {
+            hello: true,
+            user_agent: Some(edge.into()),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&answer(hello, &rules)).unwrap();
+        assert!(json.contains(r#""capture":false"#) && json.contains(r#""captureOff":"browser""#));
+    }
+
+    #[test]
+    fn the_extensions_own_refusals_are_only_noted() {
+        let rules = mdm_ipc::capture::CaptureRules::default();
+        let raw = r#"{"declined":{"why":"file-type","site":"x.test","name":"p.png"},"userAgent":"UA","brands":[],"v":"0.3.0"}"#;
+        let m: Message = serde_json::from_str(raw).unwrap();
+        assert_eq!(
+            m.declined,
+            Some(Notice {
+                why: "file-type".into(),
+                site: "x.test".into(),
+                name: "p.png".into()
+            })
+        );
+        // No address of its own: an older host, which knows no `declined`, refuses it as an
+        // address it can't download, and hands nothing over.
+        assert!(!downloadable(&m.url));
+        let r = answer(m, &rules);
+        assert!(r.ok && r.error.is_none(), "noted, nothing delivered");
+        assert_eq!(
+            notice_reason("site"),
+            mdm_ipc::capture::Declined::Site.reason()
+        );
+        assert!(notice_reason("site-access").contains("site access"));
+        assert_eq!(notice_reason("x\ny"), r#""x y""#);
+    }
+
+    #[test]
+    fn log_lines_name_what_was_left_and_why() {
+        let reason = mdm_ipc::capture::Declined::FileType.reason();
+        assert_eq!(
+            left_line("Waterfox", "x.test", "p.png", reason, false),
+            "browser integration: Waterfox keeps p.png from x.test: its type isn't in Options > File types"
+        );
+        // A private window's download is never named; nor can a name break the line.
+        let private = left_line("Google Chrome", "secret.test", "s.zip", reason, true);
+        assert!(!private.contains("secret") && private.contains("private window"));
+        assert!(!left_line("", "x.test", "a\nb.zip", reason, false).contains('\n'));
+        assert!(
+            left_line("", "", "", reason, false)
+                .starts_with("browser integration: a browser keeps a download:")
+        );
+    }
+
+    #[test]
+    fn older_extensions_messages_still_work() {
+        // As the Chrome Web Store's 0.2.4 extension sends a download (no browser name from
+        // getBrowserInfo, no notices), and as 0.2.4's own extension did (no brands, no version).
+        let rules = mdm_ipc::capture::CaptureRules::default();
+        for raw in [
+            r#"{"url":"https://x.test/a.zip","finalUrl":"","referrer":"https://x.test/","cookies":"","filename":"a.zip","size":1048576,"mime":"application/zip","userAgent":"Mozilla/5.0 Chrome/141.0.0.0 Safari/537.36","brands":["Not:A-Brand","Chromium","Google Chrome"],"v":"0.2.4"}"#,
+            r#"{"url":"https://x.test/a.zip","referrer":"https://x.test/","cookies":"","userAgent":"Mozilla/5.0 Chrome/141.0.0.0 Safari/537.36","filename":"a.zip"}"#,
+        ] {
+            let m: Message = serde_json::from_str(raw).unwrap();
+            assert_eq!(verdict(&m, &rules), Ok(()), "{raw}");
+            assert_eq!(to_command(m).name.as_deref(), Some("a.zip"));
+        }
+    }
+
+    #[test]
     fn framing_round_trip() {
         let mut buf = Vec::new();
         write_message(&mut buf, br#"{"url":"https://x/a.zip"}"#).unwrap();
@@ -1095,6 +1330,52 @@ mod tests {
             matches!(read_message(&mut r).unwrap(), Some(Ok(_))),
             "the next one reads"
         );
+    }
+
+    /// The extension's cookies with their domains, as `cookies.getAll` names them (its other
+    /// fields ignored), reach the app; an older extension's message has none.
+    #[test]
+    fn cookies_keep_their_domains() {
+        let m: Message = serde_json::from_str(
+            r#"{"url":"https://music.youtube.com/watch?v=x","cookies":"SID=1; pref=2","userAgent":"UA",
+              "cookieJar":[{"name":"SID","value":"1","domain":".youtube.com","hostOnly":false,"path":"/","secure":true,"httpOnly":true,"sameSite":"lax","session":false,"expirationDate":1893456000.5,"storeId":"0"},
+                           {"name":"pref","value":"2","domain":"music.youtube.com","hostOnly":true,"path":"/","secure":false,"session":true}]}"#,
+        )
+        .unwrap();
+        let c = to_command(m);
+        assert_eq!(c.cookies.as_deref(), Some("SID=1; pref=2"));
+        assert_eq!(
+            c.cookie_jar,
+            [
+                mdm_ipc::BrowserCookie {
+                    name: "SID".into(),
+                    value: "1".into(),
+                    domain: ".youtube.com".into(),
+                    host_only: false,
+                    path: "/".into(),
+                    secure: true,
+                    expires: Some(1893456000.5),
+                },
+                mdm_ipc::BrowserCookie {
+                    name: "pref".into(),
+                    value: "2".into(),
+                    domain: "music.youtube.com".into(),
+                    host_only: true,
+                    path: "/".into(),
+                    secure: false,
+                    expires: None,
+                },
+            ]
+        );
+        // To the app and back (its command line): the same.
+        let line = serde_json::to_string(&c).unwrap();
+        let back: mdm_ipc::Command = serde_json::from_str(&line).unwrap();
+        assert_eq!(back.cookie_jar, c.cookie_jar);
+        let old: Message =
+            serde_json::from_str(r#"{"url":"https://x/a.zip","cookies":"a=1"}"#).unwrap();
+        let c = to_command(old);
+        assert!(c.cookie_jar.is_empty());
+        assert!(!serde_json::to_string(&c).unwrap().contains("cookie_jar"));
     }
 
     #[test]

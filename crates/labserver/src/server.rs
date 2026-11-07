@@ -70,6 +70,10 @@ pub struct LogEntry {
     /// The `Cookie` header, to check credentials don't follow cross-host redirects.
     #[serde(default)]
     pub cookie: Option<String>,
+    /// The `Host` header: which host a request through the lab as an HTTP proxy was for (its
+    /// absolute address, `GET http://www.youtube.com/…`, routed by its path like any other).
+    #[serde(default)]
+    pub host: Option<String>,
     /// The `Authorization` header, never in full: its scheme and first 4 characters ("Bearer
     /// good…"), to check a service token reaches its API only (#44).
     #[serde(default)]
@@ -263,6 +267,7 @@ impl Shared {
             if_range: header_str(headers, header::IF_RANGE),
             user_agent: header_str(headers, header::USER_AGENT),
             cookie: header_str(headers, header::COOKIE),
+            host: header_str(headers, header::HOST),
             authorization: header_str(headers, header::AUTHORIZATION)
                 .map(|a| a.chars().take(11).collect::<String>() + "…"),
             referer: header_str(headers, header::REFERER),
@@ -584,7 +589,8 @@ GET /cookie?set=NAME=VALUE&httponly=NAME=VALUE&clear=NAME   (each repeatable) a 
     Set-Cookie: NAME=VALUE; Path=/ (; HttpOnly), or NAME=; Path=/; Max-Age=0
 GET /assets/page.css  /assets/stream.js
 
-STREAMS  3 segments of 4 s per track, fake bytes (TS: a 0x47 sync byte every 188)
+STREAMS  3 segments of 4 s per track. HLS: real MPEG-TS, AAC silence on every track (ffmpeg
+    remuxes them); DASH: fake bytes
 GET /hls/master.m3u8   two variants (720p: 1280x720, 1280000 b/s; 360p: 640x360, 640000 b/s)
     and an audio rendition (GROUP-ID="aud"): /hls/{720p,360p,audio}/index.m3u8 -> seg0..2.ts
     of 48128, 24064, 6016 bytes (application/vnd.apple.mpegurl, video/mp2t)

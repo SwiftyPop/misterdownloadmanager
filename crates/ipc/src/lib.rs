@@ -35,6 +35,12 @@ pub struct Command {
     /// From the browser: request context to reuse.
     pub referer: Option<String>,
     pub cookies: Option<String>,
+    /// From the browser: the same cookies, each with the domain, path and flags the browser
+    /// keeps for it, for yt-dlp's cookie file. yt-dlp may ask another host than the page's (a
+    /// YouTube Music page is looked up on www.youtube.com), and a cookie of `.youtube.com` goes
+    /// there too. An older extension sends `cookies` only.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub cookie_jar: Vec<BrowserCookie>,
     pub user_agent: Option<String>,
     /// From the browser: where its redirects from `url` ended (`url` stays the address asked
     /// for, so an expired signed link can be renewed from it).
@@ -63,8 +69,23 @@ pub struct Command {
     pub api: Option<bool>,
     /// Automation API: `"pause"`, `"start"`, `"remove"` (off the list, its file kept) or
     /// `"delete"` (with its file) the downloads `ids`; answered with what was done and skipped.
+    /// `"start_queue"` / `"stop_queue"` start or stop the queue named `queue`.
     pub action: Option<String>,
     pub ids: Vec<u64>,
+    /// A category for `url` (its `key` in the list's `categories`); none: by the file's type.
+    pub category: Option<String>,
+    /// A queue by name: where `url` waits (with `later`), or the one `action` starts or stops.
+    pub queue: Option<String>,
+    /// Sent by the remote control (#141, crates/remote) on behalf of a paired device, never read
+    /// from a request line: no window opens for it, and it may only add, list and act.
+    #[serde(skip)]
+    pub remote: bool,
+    /// The remote control: an uploaded .torrent file's bytes (never read from a request line).
+    #[serde(skip)]
+    pub torrent_file: Option<Vec<u8>>,
+    /// The remote control (#157, `misterdownloadmanager-cli pair`): show a new pairing code;
+    /// answered with it, the page's addresses and a QR code to scan ([`api::PairAnswer`]).
+    pub pair: bool,
     /// `/exit` (beyond IDM): the running app saves and quits (the installer, before an upgrade
     /// or an uninstall). Starts nothing when no app runs.
     pub exit: bool,
@@ -92,10 +113,30 @@ pub struct Command {
     pub exclude_site: Option<String>,
 }
 
+/// One cookie as the browser keeps it (`cookies.getAll`'s fields, under the extension's names
+/// too: `hostOnly`, `expirationDate`).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(default)]
+pub struct BrowserCookie {
+    pub name: String,
+    pub value: String,
+    /// `.youtube.com` (sent to its subdomains too) or a host name.
+    pub domain: String,
+    /// Sent to `domain` itself only, never its subdomains.
+    #[serde(alias = "hostOnly")]
+    pub host_only: bool,
+    pub path: String,
+    /// Sent over HTTPS only.
+    pub secure: bool,
+    /// When it expires, in seconds since 1970; none: when the browser closes.
+    #[serde(alias = "expirationDate")]
+    pub expires: Option<f64>,
+}
+
 impl Command {
     /// Asks for an answer (a JSON line) rather than "ok".
     pub fn wants_reply(&self) -> bool {
-        self.query.is_some() || self.api.is_some() || self.action.is_some()
+        self.query.is_some() || self.api.is_some() || self.action.is_some() || self.pair
     }
 }
 
@@ -103,6 +144,39 @@ impl Command {
 pub struct Incoming {
     pub cmd: Command,
     pub reply: Option<std::sync::mpsc::SyncSender<String>>,
+}
+
+/// The app's command channel from inside its own process (the remote control, #141): where
+/// commands go, and what wakes the app to read them.
+#[derive(Clone)]
+pub struct Sink {
+    tx: Sender<Incoming>,
+    wake: std::sync::Arc<dyn Fn() + Send + Sync>,
+}
+
+impl Sink {
+    pub fn new(tx: Sender<Incoming>, wake: std::sync::Arc<dyn Fn() + Send + Sync>) -> Sink {
+        Sink { tx, wake }
+    }
+
+    /// Hand `cmd` to the app and wait up to `wait` for its one-line answer (blocking). None:
+    /// the app is quitting or didn't answer in time.
+    pub fn ask(&self, cmd: Command, wait: Duration) -> Option<String> {
+        let (rtx, rrx) = std::sync::mpsc::sync_channel(1);
+        self.tx
+            .send(Incoming {
+                cmd,
+                reply: Some(rtx),
+            })
+            .ok()?;
+        (self.wake)();
+        rrx.recv_timeout(wait).ok()
+    }
+
+    /// Wake the app (to show something that changed: a device paired).
+    pub fn wake(&self) {
+        (self.wake)();
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -131,12 +205,23 @@ struct Envelope {
     cmd: Command,
 }
 
+/// The data folder a headless run was given (`--data`, #157), before anything reads it.
+static DATA_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+/// Use `dir` as the data folder from now on (over `MDM_DATA_DIR`): `--headless --data <dir>`.
+pub fn set_data_dir(dir: PathBuf) {
+    let _ = DATA_DIR.set(dir);
+}
+
 /// The app's data folder, `%APPDATA%\misterdownloadmanager` (list, settings, channel, crash
 /// log). The folder of the app's former codename, `idmnext`, is moved here once.
 ///
 /// `MDM_DATA_DIR` overrides it (a separate instance with its own list and channel: tests,
 /// screenshots). Portable mode: a writable `data` folder next to the program holds it all.
 pub fn data_dir() -> Option<PathBuf> {
+    if let Some(dir) = DATA_DIR.get() {
+        return Some(dir.clone());
+    }
     if let Some(dir) = std::env::var_os("MDM_DATA_DIR") {
         return Some(PathBuf::from(dir));
     }

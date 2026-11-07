@@ -56,6 +56,11 @@ function hostProblem(error) {
 // browser's status, and the rules depend on the browser). Never throws: failures come back as
 // `{ok: false, why}`.
 async function native(message, ms = HOST_WAIT) {
+  // A download for another MDM (a server, #157): sent there, not to this computer's.
+  if (typeof message.url === "string" && message.url) {
+    const target = await remoteTarget();
+    if (target) return remoteSend(target, message);
+  }
   const app = await APP_NAME;
   const brands = app ? [...BRANDS, app] : BRANDS;
   const sent = { ...message, userAgent: navigator.userAgent, brands, v: VERSION };
@@ -67,9 +72,91 @@ async function native(message, ms = HOST_WAIT) {
     return reply;
   } catch (e) {
     const why = hostProblem(e);
-    await noteStatus(why);
+    // With another MDM chosen, this computer's needn't be there.
+    if (!(await remoteTarget())) await noteStatus(why);
     return { ok: false, why, error: String((e && e.message) || e) };
   }
+}
+
+// ---- another MDM (#157): a server's, through its remote control ------------------------------
+
+// {url, token} while downloads go to another MDM instead of this computer's, else null.
+async function remoteTarget() {
+  const { remote } = await ext.storage.local.get({ remote: null });
+  return remote && remote.url && remote.token ? remote : null;
+}
+
+// One request to the remote control's API at `base` (https://server:8463/). Never throws:
+// {status, body}, status 0 when it isn't reached (not running, or its certificate not accepted
+// in this browser yet). The browser's cookies never go with it.
+async function remoteCall(base, path, body, token) {
+  try {
+    const r = await withTimeout(
+      fetch(new URL(path, base), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(body),
+        credentials: "omit",
+        cache: "no-store",
+        redirect: "error",
+      }),
+      15000,
+    );
+    let json = null;
+    try {
+      json = await r.json();
+    } catch {
+      json = null;
+    }
+    return { status: r.status, body: json };
+  } catch {
+    return { status: 0, body: null };
+  }
+}
+
+// A download handed to the other MDM: its address only (a site's sign-in stays in this browser).
+async function remoteSend(target, message) {
+  const r = await remoteCall(target.url, "api/add", { url: message.url, start: true }, target.token);
+  if (r.status === 200 && r.body && !r.body.error) return { ok: true };
+  if (r.status === 401) await ext.storage.local.set({ remote: null }); // unpaired there
+  return { ok: false, why: "refused" };
+}
+
+// The file types the app takes by default (mdm_ipc::capture::DEFAULT_AUTO_TYPES; a test keeps
+// them the same): what is caught for another MDM when this computer has none to ask.
+const DEFAULT_TYPES =
+  "3GP 7Z AAC ACE AIF APK APPIMAGE APPX APPXBUNDLE ARJ ASF AVI BIN BZ2 CAB DEB DMG EXE FLAC GZ GZIP IMG ISO JAR LZH M4A M4V MKV MOV MP3 MP4 MPA MPE MPEG MPG MSI MSIX MSU OGG OGV OPUS PDF PKG PLJ PPS PPT QT R0* R1* RA RAR RM RMVB RPM SEA SIT SITX TAR TGZ TIF TIFF TORRENT TXZ WAV WEBM WMA WMV XZ Z ZIP ZST";
+
+// Pair with the MDM at `address` with a code it shows; {ok} or {ok: false, why, left}.
+async function remotePair(address, code) {
+  let base;
+  try {
+    base = new URL(String(address).trim());
+  } catch {
+    return { ok: false, why: "address" };
+  }
+  if (base.protocol !== "https:") return { ok: false, why: "address" };
+  base = `${base.origin}/`;
+  const name = ext.i18n.getMessage("remote_device_name") || "Browser";
+  const r = await remoteCall(base, "api/pair", { code: String(code), name }, null);
+  if (r.status === 200 && r.body && typeof r.body.token === "string") {
+    await ext.storage.local.set({ remote: { url: base, token: r.body.token } });
+    await refreshRules();
+    await showStatus();
+    return { ok: true };
+  }
+  const why = { 0: "unreachable", 403: "wrong-code", 410: "no-code", 429: "too-soon" }[r.status] || "failed";
+  return { ok: false, why, left: r.body && r.body.left };
+}
+
+// Back to this computer: unpaired there too (when it answers).
+async function remoteOff() {
+  const target = await remoteTarget();
+  if (target) await remoteCall(target.url, "api/forget", {}, target.token);
+  await ext.storage.local.set({ remote: null });
+  await refreshRules();
+  await showStatus();
+  return { ok: true };
 }
 
 // a < b, both "x.y.z".
@@ -104,7 +191,7 @@ async function noteStatus(why, app) {
 }
 
 async function showStatus() {
-  const { why } = await readStatus();
+  const why = (await remoteTarget()) ? null : (await readStatus()).why;
   const { paused } = await ext.storage.local.get({ paused: false });
   try {
     await action.setBadgeBackgroundColor({ color: why ? "#C42B1C" : "#6B6B6B" });
@@ -117,7 +204,8 @@ async function showStatus() {
 
 // ---- the rules: Options in the app, kept here between the browser's stops ------------------
 
-// {types, capture, excludedSites, excludedAddresses, opened, at}; null until first asked.
+// {types, capture, captureOff, excludedSites, excludedAddresses, opened, minKb, at}; null until
+// first asked. `captureOff`: why `capture` is false (a host before #208 doesn't say).
 let rules = null;
 
 async function storedRules() {
@@ -138,6 +226,7 @@ async function askRules() {
     rules = {
       types: reply.types,
       capture: reply.capture !== false,
+      captureOff: typeof reply.captureOff === "string" ? reply.captureOff : "",
       excludedSites: reply.excludedSites || "",
       excludedAddresses: Array.isArray(reply.excludedAddresses) ? reply.excludedAddresses : [],
       opened: reply.opened !== false,
@@ -146,6 +235,12 @@ async function askRules() {
     };
     await ext.storage.local.set({ rules });
     await syncOpenedRule();
+    return rules;
+  }
+  // No MDM on this computer, another one chosen: the app's default file types (the browser
+  // keeps the files it would open).
+  if (await remoteTarget()) {
+    rules = { types: DEFAULT_TYPES, capture: true, excludedSites: "", excludedAddresses: [], opened: false, minKb: 0, at: Date.now() };
     return rules;
   }
   return null;
@@ -198,17 +293,60 @@ function addressMatches(pattern, url) {
   return wildcard(p, p.includes("://") ? url : url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, ""));
 }
 
-function excluded(r, url) {
+// Which of Options' lists leaves `url` to the browser: "site", "address", or "" (neither).
+function excludedBy(r, url) {
   let host = "";
   try {
     host = new URL(url).hostname.toLowerCase();
   } catch {
-    return true;
+    return "site";
   }
-  return (
-    r.excludedSites.split(/\s+/).some((p) => p && hostMatches(host, p)) ||
-    r.excludedAddresses.some((p) => addressMatches(p, url))
-  );
+  if (r.excludedSites.split(/\s+/).some((p) => p && hostMatches(host, p))) return "site";
+  if (r.excludedAddresses.some((p) => addressMatches(p, url))) return "address";
+  return "";
+}
+
+function excluded(r, url) {
+  return excludedBy(r, url) !== "";
+}
+
+// ---- downloads left to the browser: why, for the popup and MDM's log (#208) ----------------
+
+// A host's refusal by Options names the rule (`declined`); one before #208 says it only in its
+// error text, by the rule's Rust name (mdm_ipc::capture::Declined).
+const DECLINED_NAMES = {
+  IntegrationOff: "integration-off",
+  Browser: "browser",
+  FileType: "file-type",
+  Site: "site",
+  Address: "address",
+  Small: "small",
+};
+function declinedOf(reply) {
+  if (typeof reply.declined === "string" && reply.declined) return reply.declined;
+  const m = /left to the browser by Options \((\w+)\)/.exec(String(reply.error || ""));
+  return (m && DECLINED_NAMES[m[1]]) || "";
+}
+
+function siteOf(url) {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";
+  }
+}
+
+// The last download left to the browser by Options (or because the extension may not read the
+// site): kept for the popup ({why, name, site, at}; a private window's without its name or
+// site), and, when the extension decided alone (`told` false), told to the host for MDM's log.
+// The host logs its own refusals itself. A download taken later clears it.
+async function noteLeft(why, name, url, incognito, told) {
+  const declined = incognito ? { why, name: "", site: "", at: Date.now() } : { why, name, site: siteOf(url), at: Date.now() };
+  await ext.storage.local.set({ declined });
+  if (told) return;
+  // Under a key of its own, with no address: an older host refuses it as one it can't
+  // download, and hands nothing over.
+  await native({ declined: { why, name: declined.name, site: declined.site }, ...(incognito ? { private: true } : {}) });
 }
 
 // ---- what the page told us: forms posted, links clicked with Alt -------------------------
@@ -753,7 +891,7 @@ async function mediaDownload(tabId, url) {
       src: it.url,
       title: String(tab.title || "").slice(0, 300),
       referrer: tab.url && tab.url !== page ? tab.url : "",
-      cookies: await cookieHeader(it.url, ctx),
+      ...(await videoCookies(it.url, ctx)),
       ...(ctx.incognito ? { private: true } : {}),
     });
   }
@@ -764,14 +902,39 @@ async function mediaDownload(tabId, url) {
 
 // Cookies from the store the download belongs to, never another: Firefox names it on the
 // download (private windows and containers each have their own); Chrome's incognito store is "1".
-async function cookieHeader(url, { incognito, storeId }) {
+async function cookiesFor(url, { incognito, storeId }) {
   try {
     const query = storeId ? { url, storeId } : incognito ? { url, storeId: "1" } : { url };
-    const list = await ext.cookies.getAll(query);
-    return list.map((c) => `${c.name}=${c.value}`).join("; ");
+    return (await ext.cookies.getAll(query)) || [];
   } catch {
-    return "";
+    return [];
   }
+}
+
+function header(list) {
+  return list.map((c) => `${c.name}=${c.value}`).join("; ");
+}
+
+async function cookieHeader(url, ctx) {
+  return header(await cookiesFor(url, ctx));
+}
+
+// For yt-dlp, which may ask another host of the site than the page's (a YouTube Music page is
+// looked up on www.youtube.com): each cookie with the domain, path and flags the browser keeps,
+// so the app files `.youtube.com`'s sign-in for every host of it and a host's own cookie for
+// that host alone. The header goes too, for an older app.
+async function videoCookies(url, ctx) {
+  const list = await cookiesFor(url, ctx);
+  const cookieJar = list.map((c) => ({
+    name: c.name,
+    value: c.value,
+    domain: c.domain,
+    hostOnly: Boolean(c.hostOnly),
+    path: c.path || "/",
+    secure: Boolean(c.secure),
+    ...(typeof c.expirationDate === "number" ? { expirationDate: c.expirationDate } : {}),
+  }));
+  return { cookies: header(list), cookieJar };
 }
 
 // Has the user left this extension the site? With access limited ("On click", some sites), its
@@ -978,7 +1141,9 @@ async function handOff(d) {
   return native(message);
 }
 
-// The file name to offer the app the download under, or null: the browser keeps it.
+// The file name to offer the app the download under (`{name}`), or why Options leave it to
+// the browser (`{left, name}`), or null: the browser keeps it and there is nothing to say (not a
+// web address, paused, Alt held, a form that can't be posted again, MDM not reached).
 async function candidate(item, url) {
   if (!/^https?:/i.test(url)) return null; // blob:, data:, file: stay the browser's
   const { paused } = await ext.storage.local.get({ paused: false });
@@ -988,15 +1153,24 @@ async function candidate(item, url) {
   const first = firstUrl(item);
   if (bypass.has(first) || postOf(first) === null) return null; // Alt; a form not to post again
   const r = await currentRules();
-  if (!r || !r.capture || excluded(r, first) || excluded(r, url)) return null;
+  if (!r) return null;
   const name = (item.filename || "").split(/[\\/]/).pop() || url.split(/[?#]/)[0].split("/").pop() || "";
+  const left = (why) => ({ left: why, name });
+  if (!r.capture) return left(r.captureOff || "browser");
+  const by = excludedBy(r, first) || excludedBy(r, url);
+  if (by) return left(by);
   const type = extensionOf(name);
-  if (!type || !typePatterns(r.types).some((p) => p.test(type))) return null;
+  if (!type || !typePatterns(r.types).some((p) => p.test(type))) return left("file-type");
   // Smaller than Options' minimum (when the browser knows the size already).
   const size = item.totalBytes > 0 ? item.totalBytes : item.fileSize;
-  if (r.minKb > 0 && size > 0 && size < r.minKb * 1024) return null;
-  if (!(await siteAccess(first))) return null;
-  return name;
+  if (r.minKb > 0 && size > 0 && size < r.minKb * 1024) return left("small");
+  if (!(await siteAccess(first))) return left("site-access");
+  return { name };
+}
+
+// Why it stays with the browser, said (the popup, MDM's log).
+function leftAlone(c, item, url) {
+  if (c && c.left) noteLeft(c.left, c.name, firstUrl(item) || url, item.incognito, false).catch(() => {});
 }
 
 // Offer the download to the app under `name`; true if it took it.
@@ -1013,6 +1187,14 @@ async function offer(item, url, name) {
     incognito: item.incognito,
     storeId: item.cookieStoreId,
   });
+  if (reply.ok) {
+    await ext.storage.local.remove("declined").catch(() => {});
+  } else {
+    // Refused by Options in the app (changed since the extension asked, or a rule only the app
+    // checks, as a redirect's end): the host logged it; the popup says it.
+    const why = declinedOf(reply);
+    if (why) await noteLeft(why, name, first, item.incognito, true).catch(() => {});
+  }
   return Boolean(reply.ok);
 }
 
@@ -1067,8 +1249,13 @@ if (!FIREFOX) {
   ext.downloads.onDeterminingFilename.addListener((item, suggest) => {
     const url = item.finalUrl || item.url;
     candidate(item, url)
-      .then((name) => name && offer(item, url, name))
-      .then((taken) => (taken ? drop(item) : suggest()))
+      .then(async (c) => {
+        const taken = Boolean(c && c.name && !c.left) && (await offer(item, url, c.name));
+        if (taken) return drop(item);
+        // The browser goes on first; why is said after.
+        suggest();
+        leftAlone(c, item, url);
+      })
       .catch(() => suggest());
     return true; // suggest() comes later
   });
@@ -1078,8 +1265,9 @@ if (!FIREFOX) {
   // cancelled or resumed; one that finished meanwhile (a small file) has its file removed.
   ext.downloads.onCreated.addListener(async (item) => {
     const url = item.finalUrl || item.url;
-    const name = await candidate(item, url).catch(() => null);
-    if (!name) return;
+    const c = await candidate(item, url).catch(() => null);
+    if (!c || c.left) return leftAlone(c, item, url);
+    const name = c.name;
     let paused = false;
     try {
       await ext.downloads.pause(item.id);
@@ -1270,7 +1458,7 @@ ext.contextMenus.onClicked.addListener(async (info, tab) => {
     // window, which reads streams (a manifest downloaded as a file is only a short list).
     // The manifest's own cookies (its server may not be the page's), as the media list sends.
     if (url && MANIFEST.test(url)) {
-      const reply = await native({ video: true, explicit: true, url: info.pageUrl, src: url, cookies: await cookieHeader(url, { incognito, storeId }), private: incognito });
+      const reply = await native({ video: true, explicit: true, url: info.pageUrl, src: url, ...(await videoCookies(url, { incognito, storeId })), private: incognito });
       if (!reply.ok && reply.why !== "options") explain(reply.why);
       return;
     }
@@ -1289,7 +1477,7 @@ ext.contextMenus.onClicked.addListener(async (info, tab) => {
         url: page,
         ...(src ? { src } : {}),
         referrer: info.pageUrl && info.pageUrl !== page ? info.pageUrl : "",
-        cookies: await cookieHeader(src || page, { incognito, storeId }),
+        ...(await videoCookies(src || page, { incognito, storeId })),
         private: incognito,
       });
       if (!reply.ok && reply.why !== "options") explain(reply.why);
@@ -1409,7 +1597,7 @@ async function pageMessage(m, sender) {
       referrer: tab.url && tab.url !== page ? tab.url : "",
       // The cookies of what yt-dlp is given (the app files them under its host): the stream's
       // own server may not be the page's, and the page's cookies are not for it.
-      cookies: await cookieHeader(src || page, { incognito: tab.incognito, storeId: tab.cookieStoreId }),
+      ...(await videoCookies(src || page, { incognito: tab.incognito, storeId: tab.cookieStoreId })),
       ...(tab.incognito ? { private: true } : {}),
     });
     return { ok: Boolean(reply.ok), why: reply.why };
@@ -1429,8 +1617,13 @@ async function popupMessage(m) {
     const r = await refreshRules();
     const { paused } = await ext.storage.local.get({ paused: false });
     const s = await readStatus();
-    return { connected: Boolean(r) && (!s.why || s.why === "update-app"), why: s.why, app: s.app, version: VERSION, paused };
+    const { declined } = await ext.storage.local.get({ declined: null });
+    const remote = await remoteTarget();
+    if (remote) return { connected: true, why: null, remote: remote.url, version: VERSION, paused, declined };
+    return { connected: Boolean(r) && (!s.why || s.why === "update-app"), why: s.why, app: s.app, version: VERSION, paused, declined };
   }
+  if (m.type === "remote-pair" && typeof m.url === "string" && typeof m.code === "string") return remotePair(m.url, m.code);
+  if (m.type === "remote-off") return remoteOff();
   if (m.type === "pause") {
     await ext.storage.local.set({ paused: Boolean(m.paused) });
     await syncOpenedRule();

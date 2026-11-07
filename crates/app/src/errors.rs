@@ -84,6 +84,10 @@ pub fn describe(e: &Error) -> String {
             &[("code", &ltr(&code.to_string())), ("reply", &ltr(text))],
         ),
         Error::Refused(r) => refusal(r),
+        Error::NoCertificates => {
+            // i18n: a download's error on a computer (a minimal Linux) without the certificates that secure connections check servers with; "ca-certificates" is the package's name, left as is
+            t("this computer has no certificates to check the server with: install the ca-certificates package, then try again").to_owned()
+        }
         Error::Net { kind, cause } => {
             let what = match kind {
                 NetKind::Connect => t("cannot connect to the server"),
@@ -263,6 +267,15 @@ pub fn tools(e: &mdm_tools::Error) -> String {
         E::Adapter(e) => adapter(e),
         // i18n: error: a program chosen as yt-dlp or ffmpeg didn't answer as one; {name} = yt-dlp or ffmpeg
         E::NotTheProgram(name) => fmt(t("this program isn't {name}"), &[("name", name)]),
+        E::TooOld {
+            name,
+            version,
+            oldest,
+        } => fmt(
+            // i18n: error: a program chosen as a helper is too old; {name} = gallery-dl, {version} = its version, {oldest} = the oldest one MDM can use
+            t("{name} {version} is too old: MDM needs {oldest} or newer"),
+            &[("name", name), ("version", version), ("oldest", oldest)],
+        ),
     }
 }
 

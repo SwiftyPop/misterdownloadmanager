@@ -119,6 +119,39 @@
   "popup_fix": {
     "message": "Miten korjata"
   },
+  "popup_declined": {
+    "message": "Jätetty selaimelle: $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "setup.png"
+      }
+    }
+  },
+  "popup_declined_unnamed": {
+    "message": "Viimeisin lataus jätettiin selaimelle."
+  },
+  "declined_file_type": {
+    "message": "Sen tyyppi ei ole kohdassa Asetukset → Tiedostotyypit."
+  },
+  "declined_site": {
+    "message": "Sen sivusto on kohdassa Asetukset → Tiedostotyypit, selaimelle jätetyt sivustot."
+  },
+  "declined_address": {
+    "message": "Sen osoite on kohdassa Asetukset → Tiedostotyypit, selaimelle jätetyt osoitteet."
+  },
+  "declined_small": {
+    "message": "Se on pienempi kuin vähimmäiskoko kohdassa Asetukset → Tiedostotyypit."
+  },
+  "declined_browser": {
+    "message": "Tätä selainta ei ole valittu kohdassa Asetukset → Yleiset."
+  },
+  "declined_integration_off": {
+    "message": "Käytä laajennettua selainintegraatiota on pois päältä kohdassa Asetukset → Yleiset."
+  },
+  "declined_site_access": {
+    "message": "Laajennuksella ei ole lupaa lukea tätä sivustoa (selaimen sivustokäyttö)."
+  },
   "popup_alt": {
     "message": "Pidä Alt-näppäintä painettuna napsauttaessasi linkkiä, jotta selain lataa sen."
   },
@@ -142,5 +175,56 @@
   },
   "video_drm": {
     "message": "Suojattu video: sitä ei voi tallentaa"
+  },
+  "popup_send_to": {
+    "message": "Lähetä lataukset kohteeseen"
+  },
+  "popup_send_here": {
+    "message": "Tämä tietokone"
+  },
+  "popup_send_remote": {
+    "message": "Toinen Mister Download Manager (palvelin)"
+  },
+  "popup_remote_code": {
+    "message": "Pariliitoskoodi"
+  },
+  "popup_remote_open": {
+    "message": "Avaa se"
+  },
+  "popup_remote_pair": {
+    "message": "Laita pariksi"
+  },
+  "popup_remote_help": {
+    "message": "Avaa sen osoite kerran ja hyväksy sen varmenne, anna sitten koodi sen Asetukset, Etä, Laita laite pariksi -kohdasta (tai misterdownloadmanager-cli pair)."
+  },
+  "status_remote": {
+    "message": "Lataukset menevät osoitteeseen $address$",
+    "placeholders": {
+      "address": {
+        "content": "$1",
+        "example": "https://192.168.1.10:8463/"
+      }
+    }
+  },
+  "remote_address": {
+    "message": "Anna sen https://-osoite."
+  },
+  "remote_unreachable": {
+    "message": "Ei tavoitettu. Avaa sen osoite kerran tässä selaimessa ja hyväksy sen varmenne, yritä sitten uudelleen."
+  },
+  "remote_wrong_code": {
+    "message": "Väärä koodi."
+  },
+  "remote_no_code": {
+    "message": "Se ei näytä koodia nyt: napsauta ensin Laita laite pariksi -painiketta siellä."
+  },
+  "remote_too_soon": {
+    "message": "Odota hetki ja yritä sitten uudelleen."
+  },
+  "remote_failed": {
+    "message": "Se ei toiminut. Yritä uudelleen."
+  },
+  "remote_device_name": {
+    "message": "Selaimen laajennus"
   }
 }

@@ -119,6 +119,39 @@
   "popup_fix": {
     "message": "Как исправить"
   },
+  "popup_declined": {
+    "message": "Оставлено браузеру: $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "setup.png"
+      }
+    }
+  },
+  "popup_declined_unnamed": {
+    "message": "Последняя загрузка была оставлена браузеру."
+  },
+  "declined_file_type": {
+    "message": "Тип файла отсутствует в меню «Параметры» → «Типы файлов»."
+  },
+  "declined_site": {
+    "message": "Сайт находится в меню «Параметры» → «Типы файлов», сайты, оставленные браузеру."
+  },
+  "declined_address": {
+    "message": "Адрес находится в меню «Параметры» → «Типы файлов», адреса, оставленные браузеру."
+  },
+  "declined_small": {
+    "message": "Размер меньше минимального в меню «Параметры» → «Типы файлов»."
+  },
+  "declined_browser": {
+    "message": "Этот браузер не отмечен в меню «Параметры» → «Общие»."
+  },
+  "declined_integration_off": {
+    "message": "Параметр «Использовать расширенную интеграцию с браузером» отключен в меню «Параметры» → «Общие»."
+  },
+  "declined_site_access": {
+    "message": "Расширению не разрешено читать этот сайт (доступ расширения к сайту в браузере)."
+  },
   "popup_alt": {
     "message": "Удерживайте Alt при нажатии на ссылку, чтобы браузер загрузил ее."
   },
@@ -142,5 +175,56 @@
   },
   "video_drm": {
     "message": "Защищенное видео: его нельзя сохранить"
+  },
+  "popup_send_to": {
+    "message": "Отправлять загрузки в"
+  },
+  "popup_send_here": {
+    "message": "Этот компьютер"
+  },
+  "popup_send_remote": {
+    "message": "Другой Mister Download Manager (сервер)"
+  },
+  "popup_remote_code": {
+    "message": "Код сопряжения"
+  },
+  "popup_remote_open": {
+    "message": "Открыть"
+  },
+  "popup_remote_pair": {
+    "message": "Сопрячь"
+  },
+  "popup_remote_help": {
+    "message": "Откройте его адрес один раз и примите его сертификат, затем введите код из его «Параметров», «Удаленного доступа», «Сопрячь устройство» (или misterdownloadmanager-cli pair)."
+  },
+  "status_remote": {
+    "message": "Загрузки отправляются на $address$",
+    "placeholders": {
+      "address": {
+        "content": "$1",
+        "example": "https://192.168.1.10:8463/"
+      }
+    }
+  },
+  "remote_address": {
+    "message": "Введите его адрес https://."
+  },
+  "remote_unreachable": {
+    "message": "Недоступно. Откройте его адрес один раз в этом браузере и примите его сертификат, затем повторите попытку."
+  },
+  "remote_wrong_code": {
+    "message": "Неверный код."
+  },
+  "remote_no_code": {
+    "message": "Сейчас код не отображается: сначала нажмите «Сопрячь устройство» там."
+  },
+  "remote_too_soon": {
+    "message": "Подождите немного, затем повторите попытку."
+  },
+  "remote_failed": {
+    "message": "Не удалось. Повторите попытку."
+  },
+  "remote_device_name": {
+    "message": "Расширение браузера"
   }
 }

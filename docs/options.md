@@ -2,7 +2,7 @@
 
 [← Back to docs index](README.md)
 
-Open **Downloads → Options**, or click **Options** on the toolbar. The window has nine pages on two rows of tabs. **OK** saves your changes; closing the window or pressing **Esc** throws them away.
+Open **Downloads → Options**, or click **Options** on the toolbar. The window has twelve pages on two rows of tabs. **OK** saves your changes; closing the window or pressing **Esc** throws them away.
 
 Some buttons are greyed. They belong to features that aren't built yet.
 
@@ -26,7 +26,7 @@ See [Browser integration](browser-integration.md).
 ![Options on its File types page: the file types the browser hands to MDM and the sites it leaves alone](images/help/options-file-types.webp)
 *File types: what the browser hands over, and the sites left alone.*
 
-- **Automatically start downloading the following file types** — the file types the browser hands over (and the clipboard picks up). Separate them by spaces; `*` matches any characters, as in `R0*`. **Default** puts the original list back.
+- **Automatically start downloading the following file types** — the file types the browser hands over (and the clipboard picks up). Separate them by spaces; `*` matches any characters, as in `R0*`. **Default** puts the original list back. The list starts with the usual archives, programs and installers (Windows, macOS and Linux ones: DMG, PKG, DEB, RPM, APPIMAGE, MSIX), music and videos, and PDF. A list you never changed gains the types a new version adds; one you edited stays as it is.
 - **Don't start downloading automatically from the following sites** — sites whose downloads stay in the browser, separated by spaces. `*.example.com` covers every part of a site. **Default** puts the original list back.
 
 ## Save to
@@ -149,6 +149,21 @@ Archives (zip, 7z, rar, tar, gz, xz), and [Link grabber](link-grabber.md).
 - Whether **7-Zip** was found: 7z and RAR archives need it.
 - **Look links up when they arrive (name, size, online)** — Link grabber asks each server about its file (on by default).
 - **Hide web pages** — Link grabber's default for the same box (on).
+
+## Remote
+
+![Options: Remote](images/options-remote.png)
+
+Control MDM from your phone or another computer on the local network: see
+[Control MDM from your phone](remote-control.md).
+
+- **Let phones and computers on the local network control MDM** (off by default).
+- **Listen on** — every local network address (the default), this computer only, or one address.
+- **Port** — 8463 by default.
+- **Status** — what it is doing, the address to open on the phone, and the certificate's
+  fingerprint.
+- **Paired devices** — **Pair a device...** shows a QR code and a code; **Remove** unpairs the
+  device selected, at once.
 
 ## Elsewhere
 

@@ -119,6 +119,39 @@
   "popup_fix": {
     "message": "Как да го поправите"
   },
+  "popup_declined": {
+    "message": "Оставено на браузъра: $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "setup.png"
+      }
+    }
+  },
+  "popup_declined_unnamed": {
+    "message": "Последното изтегляне беше оставено на браузъра."
+  },
+  "declined_file_type": {
+    "message": "Типът му не е в Опции → Файлови типове."
+  },
+  "declined_site": {
+    "message": "Сайтът му е в Опции → Файлови типове, сайтове, оставени на браузъра."
+  },
+  "declined_address": {
+    "message": "Адресът му е в Опции → Файлови типове, адреси, оставени на браузъра."
+  },
+  "declined_small": {
+    "message": "По-малък е от минималния размер в Опции → Файлови типове."
+  },
+  "declined_browser": {
+    "message": "Този браузър не е отметнат в Опции → Общи."
+  },
+  "declined_integration_off": {
+    "message": "„Използване на разширена интеграция с браузъра“ е изключено в Опции → Общи."
+  },
+  "declined_site_access": {
+    "message": "Разширението няма разрешение да чете този сайт (достъпът на браузъра до сайта)."
+  },
   "popup_alt": {
     "message": "Задръжте Alt, докато щраквате върху връзка, за да позволите на браузъра да я изтегли."
   },
@@ -142,5 +175,56 @@
   },
   "video_drm": {
     "message": "Защитено видео: не може да бъде записано"
+  },
+  "popup_send_to": {
+    "message": "Изпращане на изтегляния до"
+  },
+  "popup_send_here": {
+    "message": "Този компютър"
+  },
+  "popup_send_remote": {
+    "message": "Друг Mister Download Manager (сървър)"
+  },
+  "popup_remote_code": {
+    "message": "Код за сдвояване"
+  },
+  "popup_remote_open": {
+    "message": "Отворете го"
+  },
+  "popup_remote_pair": {
+    "message": "Сдвояване"
+  },
+  "popup_remote_help": {
+    "message": "Отворете адреса му веднъж и приемете сертификата му, след което въведете код от неговите Опции, Отдалечен, Сдвояване на устройство (или misterdownloadmanager-cli pair)."
+  },
+  "status_remote": {
+    "message": "Изтеглянията отиват на $address$",
+    "placeholders": {
+      "address": {
+        "content": "$1",
+        "example": "https://192.168.1.10:8463/"
+      }
+    }
+  },
+  "remote_address": {
+    "message": "Въведете неговия https:// адрес."
+  },
+  "remote_unreachable": {
+    "message": "Не е достигнато. Отворете адреса му веднъж в този браузър и приемете сертификата му, след което опитайте отново."
+  },
+  "remote_wrong_code": {
+    "message": "Грешен код."
+  },
+  "remote_no_code": {
+    "message": "Сега не показва код: първо щракнете върху Сдвояване на устройство там."
+  },
+  "remote_too_soon": {
+    "message": "Изчакайте малко, след което опитайте отново."
+  },
+  "remote_failed": {
+    "message": "Не се получи. Опитайте отново."
+  },
+  "remote_device_name": {
+    "message": "Разширение на браузъра"
   }
 }

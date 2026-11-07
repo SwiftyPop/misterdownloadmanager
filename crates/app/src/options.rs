@@ -50,7 +50,12 @@ enum Sub {
     Dns(DnsEdit),
     /// Accounts → Add...: the service, a pasted token, and the sign-in running (#44).
     Account(AccountEdit),
+    /// Remote → Pair a device...: the code shown, until a device pairs or it is closed.
+    Pair,
 }
+
+/// Options → Remote's page number (the tabs' numbers).
+const REMOTE_PAGE: usize = 11;
 
 /// Connection → DNS's sub-dialog: a copy of the DNS fields, kept on OK.
 struct DnsEdit {
@@ -206,6 +211,11 @@ pub struct OptionsDialog {
     seven_zip: Option<std::path::PathBuf>,
     /// Proxy / Socks → Network adapter (#35): the computer's adapters, read again every 2 s.
     adapters: Option<(std::time::Instant, Vec<mdm_engine::net::Adapter>)>,
+    /// Remote (#141): the running remote control (its state, paired devices, pairing), the
+    /// port as typed, and the paired devices list's scroll and selection.
+    remote: Option<mdm_remote::Remote>,
+    port: String,
+    device_rows: winui::RowList,
     /// Test browser integration → Set it up's runs seen finished (crate::extension).
     set_up_seen: u64,
     /// Sites Logins → Cookies for video sites (#229): the browser in the list (an index into
@@ -218,6 +228,19 @@ impl OptionsDialog {
     /// 6 Sites Logins, 7 Accounts, 8 Sounds, 9 Regional, 10 Archives); for `/show options:<tab>`.
     pub fn on_page(mut self, page: usize) -> Self {
         self.page = page;
+        self
+    }
+
+    /// With the app's remote control (Remote: its state, devices and pairing).
+    pub fn with_remote(mut self, remote: Option<mdm_remote::Remote>) -> Self {
+        self.remote = remote;
+        self
+    }
+
+    /// With Remote → Pair a device... open (`/show options:pair`).
+    pub fn with_pairing(mut self) -> Self {
+        self.page = REMOTE_PAGE;
+        self.pair();
         self
     }
 
@@ -269,6 +292,9 @@ impl OptionsDialog {
             learned,
             seven_zip: crate::extractq::seven_zip(),
             adapters: None,
+            remote: None,
+            port: settings.remote_port.to_string(),
+            device_rows: Default::default(),
             cookie_browser: cookie_browser_at(settings),
         }
     }
@@ -285,7 +311,7 @@ impl OptionsDialog {
             LIGHT_BG(),
             |ui, o| {
                 // Ctrl+Tab through the pages in the tabs' order (Archives, 10, came last).
-                const ORDER: [usize; 11] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+                const ORDER: [usize; 12] = [0, 1, 2, 3, 4, 11, 5, 6, 7, 8, 9, 10];
                 let at = ORDER.iter().position(|p| *p == self.page).unwrap_or(0);
                 let by_key = winui::tab_keys(ui, ORDER.len(), at).map(|i| ORDER[i]);
                 if let Some(p) = tabs(ui, o, self.page).or(by_key) {
@@ -302,6 +328,7 @@ impl OptionsDialog {
                     7 => self.accounts(ui, o),
                     9 => self.regional(ui, o),
                     10 => self.archives(ui, o),
+                    REMOTE_PAGE => self.remote_page(ui, o),
                     8 => self.sounds(ui, o),
                     _ => self.regional(ui, o),
                 }
@@ -380,6 +407,7 @@ impl OptionsDialog {
                 s.limits_mb = self.mb.parse().unwrap_or(200).max(1);
                 s.capture_min_kb = self.min_kb.parse().unwrap_or(0);
                 s.limits_hours = self.hours.parse().unwrap_or(5).max(1);
+                s.remote_port = self.remote_port();
                 Outcome::Done(s)
             }
             Outcome::Closed => Outcome::Closed,
@@ -1332,31 +1360,31 @@ impl OptionsDialog {
             .image(true)
             .paint_at(ui, r(o, 21.0, 50.0, 32.0, 32.0));
         // Get System as wide as its label in this language (#192), its right end kept. A
-        // translated title ends where the English one does, unless the button needs that room:
-        // then the title moves left (no further than 8 px after the icon) and ends 8 px before it.
+        // translated title ends where the English one does, unless the button needs that room or
+        // it would start less than 8 px after the icon: then it ends 8 px before the button, in
+        // two lines where one doesn't fit there.
+        let font = winui::tahoma_bold();
         let english_end =
-            112.0 + winui::text_width_font(&p, winui::tahoma_bold(), "Proxy / socks configuration");
-        let title_w = page_title_width(&p, winui::tahoma_bold(), "Proxy / socks configuration");
+            112.0 + winui::text_width_font(&p, font.clone(), "Proxy / socks configuration");
         // The icon ends at 53; the button never moves right of its English place.
-        let from = (53.0 + 8.0 + title_w + 8.0).min(307.0);
+        let (start, max_w) = (53.0 + 8.0, 160.0);
+        let get_whole = winui::button_fit_width(&p, "Get System", 93.0, max_w);
+        let room = (400.0 - get_whole).min(307.0) - 8.0 - start;
+        let (lines, title_w) =
+            page_title_lines(&p, font.clone(), "Proxy / socks configuration", room);
+        let from = (start + title_w + 8.0).min(307.0);
         let (get_x, get_w) =
-            winui::button_row(&p, &[("Get System", 307.0, 93.0)], 0.0, from, 160.0)[0];
-        if get_x - 8.0 < english_end {
-            page_title_ending(
-                &p,
-                winui::tahoma_bold(),
-                o.x + get_x - 8.0,
-                o.y + 69.0,
-                "Proxy / socks configuration",
-            );
-        } else {
+            winui::button_row(&p, &[("Get System", 307.0, 93.0)], 0.0, from, max_w)[0];
+        if lines.len() == 1 && get_x - 8.0 >= english_end && english_end - title_w >= start {
             page_title(
                 &p,
-                winui::tahoma_bold(),
+                font,
                 o.x + 112.0,
                 o.y + 69.0,
                 "Proxy / socks configuration",
             );
+        } else {
+            page_title_ending(&p, font, o.x + get_x - 8.0, o.y + 69.0, &lines);
         }
         let s = &mut self.s;
         if winui::button_light(
@@ -2489,9 +2517,480 @@ impl OptionsDialog {
 
     // ---- entry dialogs --------------------------------------------------------------------
 
+    /// The computer's adapters, read again every 2 s (Proxy / Socks' adapter, Remote's address).
+    fn adapters_now(&mut self) -> Vec<mdm_engine::net::Adapter> {
+        let stale = self
+            .adapters
+            .as_ref()
+            .is_none_or(|(at, _)| at.elapsed() >= std::time::Duration::from_secs(2));
+        if stale {
+            self.adapters = Some((std::time::Instant::now(), crate::netwatch::adapters()));
+        }
+        self.adapters
+            .as_ref()
+            .map(|(_, a)| a.clone())
+            .unwrap_or_default()
+    }
+
+    /// Remote's port as typed, or the one saved when it isn't a port MDM takes.
+    fn remote_port(&self) -> u16 {
+        self.port
+            .trim()
+            .parse::<u16>()
+            .ok()
+            .filter(|p| *p >= 1024)
+            .unwrap_or(self.from.remote_port)
+    }
+
+    /// The remote control as this draft says (on, address, port).
+    fn remote_config(&self) -> mdm_remote::Config {
+        let mut s = self.s.clone();
+        s.remote_port = self.remote_port();
+        crate::remote::config(&s)
+    }
+
+    /// Remote → Pair a device...: the remote control starts as the page says (Cancel puts it
+    /// back as it was), a new code is shown.
+    fn pair(&mut self) {
+        let config = self.remote_config();
+        if let Some(r) = &self.remote {
+            r.apply(config);
+            r.start_pairing();
+        }
+        self.sub = Some(Sub::Pair);
+    }
+
+    /// Remote (#141, ours): phones and computers on the local network add and control
+    /// downloads from a page MDM serves, once paired with a code shown here.
+    fn remote_page(&mut self, ui: &mut Ui, o: Pos2) {
+        let p = ui.painter().clone();
+        // i18n: Options page title: control MDM from a phone or another computer on the local network
+        let title = crate::i18n::mark("Remote control");
+        let w = winui::text_width_font(&p, winui::tahoma_bold(), title);
+        header(ui, o, Icon::PageRemote, title, true, 406.0 - w, 61.0, 406.0);
+        let adapters = self.adapters_now();
+        winui::checkbox_light(
+            ui,
+            o + vec2(21.0, 92.0),
+            &mut self.s.remote_on,
+            // i18n: Options → Remote check box (off by default)
+            "Let phones and computers on the local network control MDM",
+            true,
+        );
+        let on = self.s.remote_on;
+        let color = if on { LIGHT_TEXT() } else { LIGHT_DISABLED() };
+        text(
+            &p,
+            o.x + 21.0,
+            o.y + 131.0,
+            // i18n: Options → Remote: label before the choice of the address MDM listens on
+            crate::i18n::t("Listen on:"),
+            color,
+        );
+        let chosen = self.s.remote_listen.trim().to_owned();
+        let mut values = vec![String::new(), mdm_remote::addrs::THIS_COMPUTER.to_owned()];
+        let mut labels = vec![
+            // i18n: Options → Remote → Listen on: the default: each of the computer's private local network addresses (never one the internet reaches)
+            crate::i18n::t("Every local network address").to_owned(),
+            // i18n: Options → Remote → Listen on: only programs on this computer can connect (127.0.0.1)
+            crate::i18n::t("This computer only (127.0.0.1)").to_owned(),
+        ];
+        for a in &adapters {
+            for ip in
+                a.v4.iter()
+                    .map(|v| v.to_string())
+                    .chain(a.v6.iter().map(|v| v.to_string()))
+            {
+                labels.push(format!("{} \u{2014} {ip}", a.name));
+                values.push(ip);
+            }
+        }
+        if !values.contains(&chosen) {
+            labels.push(crate::i18n::fmt(
+                crate::i18n::t("{adapter} (not connected)"),
+                &[("adapter", &chosen)],
+            ));
+            values.push(chosen.clone());
+        }
+        let at = values.iter().position(|v| *v == chosen).unwrap_or(0);
+        let shown: Vec<&str> = labels.iter().map(String::as_str).collect();
+        if let Some(i) = winui::combo_light(
+            ui,
+            r(o, 130.0, 118.0, 278.0, 21.0),
+            &shown,
+            at,
+            on,
+            "opt-remote-at",
+        ) {
+            self.s.remote_listen = values[i].clone();
+        }
+        // i18n: Options → Remote: label before the port number box
+        text(&p, o.x + 21.0, o.y + 159.0, crate::i18n::t("Port:"), color);
+        winui::spin_box(
+            ui,
+            r(o, 130.0, 146.0, 80.0, 21.0),
+            &mut self.port,
+            1024,
+            65535,
+            on,
+            "opt-remote-port",
+        );
+        // What it does now: as saved, or what OK changes.
+        group(ui, o, 16.0, 178.0, 392.0, 96.0, "Status");
+        let running = self.remote.as_ref().map(|r| r.status());
+        let urls = self.remote.as_ref().map(|r| r.urls()).unwrap_or_default();
+        let changed = self.remote_config() != crate::remote::config(&self.from);
+        use mdm_remote::Status;
+        let (line, ok) = match &running {
+            _ if changed => (
+                // i18n: Options → Remote → Status: the settings were changed; they apply on OK
+                crate::i18n::t("The changes apply when you click OK.").to_owned(),
+                true,
+            ),
+            None | Some(Status::Off) => (
+                // i18n: Options → Remote → Status: the remote control is off
+                crate::i18n::t("Off: nothing on the network can reach MDM.").to_owned(),
+                true,
+            ),
+            Some(Status::Listening(_)) => (
+                // i18n: Options → Remote → Status: on; the address follows in a box below
+                crate::i18n::t("On. On the phone, open this address:").to_owned(),
+                true,
+            ),
+            Some(Status::NoAddress) => (
+                // i18n: Options → Remote → Status: on, but the computer has no local network address now
+                crate::i18n::t("No local network now: it starts when the computer joins one.")
+                    .to_owned(),
+                false,
+            ),
+            Some(Status::PortInUse(port)) => (
+                crate::i18n::fmt(
+                    // i18n: Options → Remote → Status: another program uses the port; {port} = its number
+                    crate::i18n::t("Port {port} is used by another program: choose another."),
+                    &[("port", &port.to_string())],
+                ),
+                false,
+            ),
+            Some(Status::Failed(e)) => (
+                crate::i18n::fmt(
+                    // i18n: Options → Remote → Status: it could not start; {error} = the system's reason
+                    crate::i18n::t("It could not start: {error}"),
+                    &[("error", e)],
+                ),
+                false,
+            ),
+        };
+        let ink = if ok {
+            LIGHT_TEXT()
+        } else {
+            crate::theme::colors().error_strong
+        };
+        let (rect, cut) = winui::label_into(
+            &p,
+            o.x + 30.0,
+            o.y + 207.0,
+            &line,
+            ink,
+            o.x + 400.0,
+            o.x + 30.0,
+        );
+        if cut {
+            winui::full_on_hover(ui, rect, "opt-remote-state", &line);
+        }
+        if !changed && let Some(first) = urls.first() {
+            readonly_ltr(ui, r(o, 30.0, 215.0, 364.0, 21.0), first);
+        }
+        if let Some(fp) = self.remote.as_ref().and_then(|r| r.fingerprint()) {
+            let label = crate::i18n::fmt(
+                // i18n: Options → Remote → Status: the certificate's fingerprint, which the phone's browser shows when it warns about it; {fingerprint} = hex digits
+                crate::i18n::t("Certificate (SHA-256): {fingerprint}"),
+                &[("fingerprint", &crate::i18n::ltr(&fp))],
+            );
+            let (rect, cut) = winui::label_into(
+                &p,
+                o.x + 30.0,
+                o.y + 260.0,
+                &label,
+                LIGHT_TEXT(),
+                o.x + 400.0,
+                o.x + 30.0,
+            );
+            if cut {
+                winui::full_on_hover(ui, rect, "opt-remote-cert", &label);
+            }
+        }
+        // The paired devices.
+        text(
+            &p,
+            o.x + 21.0,
+            o.y + 296.0,
+            // i18n: Options → Remote: label above the list of paired phones and computers
+            crate::i18n::t("Paired devices:"),
+            LIGHT_TEXT(),
+        );
+        let devices = self
+            .remote
+            .as_ref()
+            .map(|r| r.devices())
+            .unwrap_or_default();
+        let when = |secs: i64| {
+            chrono::DateTime::from_timestamp(secs, 0)
+                .map(|t| {
+                    crate::regional::short_date_time(t.with_timezone(&chrono::Local).naive_local())
+                })
+                .unwrap_or_default()
+        };
+        let rows: Vec<Vec<String>> = devices
+            .iter()
+            .map(|d| vec![d.name.clone(), when(d.added), when(d.seen)])
+            .collect();
+        let (_, del_key) = report(
+            ui,
+            o,
+            r(o, 16.0, 302.0, 392.0, 88.0),
+            &[
+                // i18n: column title: a paired phone's or computer's name
+                (crate::i18n::mark("Device"), 120.0),
+                // i18n: column title: when the device was paired
+                (crate::i18n::mark("Paired"), 256.0),
+                // i18n: column title: when the device last reached MDM
+                (crate::i18n::mark("Last seen"), 392.0),
+            ],
+            &rows,
+            &mut self.device_rows,
+            false,
+            "opt-remote-devices",
+        );
+        let sel = self.device_rows.selected.filter(|i| *i < rows.len());
+        let pair_kind = if on {
+            ButtonKind::Normal
+        } else {
+            ButtonKind::Disabled
+        };
+        let pair = winui::why_disabled(
+            winui::button_light(
+                ui,
+                r(o, 16.0, 398.0, 130.0, 21.0),
+                // i18n: Options → Remote button: shows a code (and a QR code) that pairs a phone
+                "Pair a device...",
+                pair_kind,
+                false,
+            ),
+            !on,
+            // i18n: why Options → Remote → Pair a device... is greyed
+            "Turn on the remote control first.",
+        )
+        .clicked();
+        let remove_kind = if sel.is_some() {
+            ButtonKind::Normal
+        } else {
+            ButtonKind::Disabled
+        };
+        let remove = winui::button_light(
+            ui,
+            r(o, 154.0, 398.0, 90.0, 21.0),
+            "Remove",
+            remove_kind,
+            false,
+        )
+        .clicked()
+            || del_key;
+        if pair && on {
+            self.pair();
+        }
+        // Unpaired at once (not on OK): a lost phone is refused from its next request on.
+        if remove
+            && let (Some(i), Some(r)) = (sel, &self.remote)
+            && let Some(d) = devices.get(i)
+        {
+            r.remove(&d.id);
+            self.device_rows.selected = None;
+        }
+        winui::paragraph(
+            &p,
+            o.x + 21.0,
+            o.y + 438.0,
+            // i18n: Options → Remote, at the bottom of the page
+            crate::i18n::t(
+                "Only paired devices see or change anything. The first time, the phone's browser warns about MDM's own certificate: its fingerprint is the one above.",
+            ),
+            LIGHT_TEXT(),
+            o.x + 406.0,
+            13.0,
+        );
+    }
+
+    /// Remote → Pair a device...: the address (and a QR code of it), the code, and the device
+    /// once it paired. False when it closes.
+    fn pair_window(&mut self, ctx: &egui::Context) -> bool {
+        let Some(remote) = self.remote.clone() else {
+            return false;
+        };
+        ctx.request_repaint_after(std::time::Duration::from_millis(500));
+        let out = window(
+            ctx,
+            "opt-pair",
+            // i18n: window title: Options → Remote → Pair a device...
+            "Pair a device",
+            [360.0, 420.0],
+            false,
+            LIGHT_BG(),
+            |ui, o| {
+                let p = ui.painter().clone();
+                let urls = remote.urls();
+                let (shown, paired) = remote.pairing();
+                let close_label = if paired.is_some() {
+                    // i18n: button: close the window (the device is paired)
+                    "Done"
+                } else {
+                    "Close"
+                };
+                let close = winui::button_light(
+                    ui,
+                    r(o, 274.0, 387.0, 73.0, 21.0),
+                    close_label,
+                    ButtonKind::Default,
+                    false,
+                )
+                .clicked();
+                let Some(url) = urls.first() else {
+                    winui::paragraph(
+                        &p,
+                        o.x + 14.0,
+                        o.y + 30.0,
+                        // i18n: Options → Remote → Pair a device: the remote control isn't listening (no network, port taken): the Remote page says why
+                        crate::i18n::t(
+                            "MDM can't be reached on the network now: Options → Remote says why.",
+                        ),
+                        crate::theme::colors().error_strong,
+                        o.x + 346.0,
+                        14.0,
+                    );
+                    return if close || winui::escape_pressed(ui) {
+                        Outcome::Closed
+                    } else {
+                        Outcome::Open
+                    };
+                };
+                if let Some(name) = &paired {
+                    let line = crate::i18n::fmt(
+                        // i18n: Options → Remote → Pair a device: done; {device} = the name it was given
+                        crate::i18n::t("{device} is paired. It can control MDM now."),
+                        &[("device", &crate::i18n::isolate(name))],
+                    );
+                    winui::paragraph(
+                        &p,
+                        o.x + 14.0,
+                        o.y + 30.0,
+                        &line,
+                        LIGHT_TEXT(),
+                        o.x + 346.0,
+                        14.0,
+                    );
+                    return if close || winui::escape_pressed(ui) || winui::enter_pressed(ui) {
+                        Outcome::Done(())
+                    } else {
+                        Outcome::Open
+                    };
+                }
+                winui::paragraph(
+                    &p,
+                    o.x + 14.0,
+                    o.y + 24.0,
+                    // i18n: Options → Remote → Pair a device: how to pair
+                    crate::i18n::t(
+                        "On the phone, scan this code with the camera, or open the address and enter the code.",
+                    ),
+                    LIGHT_TEXT(),
+                    o.x + 346.0,
+                    14.0,
+                );
+                let link = match &shown {
+                    Some((code, _)) => format!("{url}#pair={code}"),
+                    None => url.clone(),
+                };
+                crate::remote::paint_qr(&p, r(o, 90.0, 56.0, 180.0, 180.0), &link);
+                readonly_ltr(ui, r(o, 14.0, 246.0, 332.0, 21.0), url);
+                match &shown {
+                    Some((code, left)) => {
+                        text(
+                            &p,
+                            o.x + 14.0,
+                            o.y + 300.0,
+                            // i18n: Options → Remote → Pair a device: label before the 8-digit code
+                            crate::i18n::t("Code:"),
+                            LIGHT_TEXT(),
+                        );
+                        let big = egui::FontId::new(26.0, winui::tahoma_bold().family);
+                        winui::text_font(
+                            &p,
+                            big,
+                            o.x + 80.0,
+                            o.y + 304.0,
+                            &crate::i18n::ltr(&format!("{} {}", &code[..4], &code[4..])),
+                            LIGHT_TEXT(),
+                        );
+                        let secs = left.as_secs();
+                        let line = crate::i18n::fmt(
+                            // i18n: Options → Remote → Pair a device: how long the code stays valid; {time} = minutes:seconds ("9:58")
+                            crate::i18n::t("Waiting for the device. The code works for {time}."),
+                            &[("time", &format!("{}:{:02}", secs / 60, secs % 60))],
+                        );
+                        winui::paragraph(
+                            &p,
+                            o.x + 14.0,
+                            o.y + 336.0,
+                            &line,
+                            LIGHT_TEXT(),
+                            o.x + 346.0,
+                            14.0,
+                        );
+                    }
+                    None => {
+                        winui::paragraph(
+                            &p,
+                            o.x + 14.0,
+                            o.y + 300.0,
+                            // i18n: Options → Remote → Pair a device: the code ran out (10 minutes, or 5 wrong tries)
+                            crate::i18n::t("This code can't be used any more."),
+                            crate::theme::colors().error_strong,
+                            o.x + 346.0,
+                            14.0,
+                        );
+                        if winui::button_light(
+                            ui,
+                            r(o, 14.0, 318.0, 100.0, 21.0),
+                            // i18n: Options → Remote → Pair a device: button: show a new code
+                            "New code",
+                            ButtonKind::Normal,
+                            false,
+                        )
+                        .clicked()
+                        {
+                            remote.start_pairing();
+                        }
+                    }
+                }
+                if close || winui::escape_pressed(ui) {
+                    Outcome::Closed
+                } else {
+                    Outcome::Open
+                }
+            },
+        );
+        matches!(out, Outcome::Open)
+    }
+
     fn sub_dialog(&mut self, ctx: &egui::Context) {
         let Some(sub) = self.sub.take() else { return };
         match sub {
+            Sub::Pair => {
+                if self.pair_window(ctx) {
+                    self.sub = Some(Sub::Pair);
+                } else if let Some(r) = &self.remote {
+                    r.stop_pairing();
+                }
+            }
             Sub::Login(row, mut site, mut user, mut pass) => {
                 let title = if row.is_some() {
                     crate::i18n::mark("Edit login")
@@ -3452,7 +3951,8 @@ fn tab_row(
 /// The two-row tab strip and the page frame; returns the page clicked.
 fn tabs(ui: &mut Ui, o: Pos2, page: usize) -> Option<usize> {
     // (page, label, x0, x1, label x): the rows never move sideways, only swap front and back.
-    const G: [(usize, &str, f32, f32, f32); 5] = [
+    // Remote (#141, ours) joins the first row, which is sized by its labels since.
+    const G: [(usize, &str, f32, f32, f32); 6] = [
         // i18n: tab title: general settings
         (0, crate::i18n::mark("General"), 8.0, 82.0, 26.0),
         // i18n: tab title
@@ -3463,6 +3963,14 @@ fn tabs(ui: &mut Ui, o: Pos2, page: usize) -> Option<usize> {
         (3, crate::i18n::mark("Downloads"), 241.0, 330.0, 260.0),
         // i18n: tab title: connection settings
         (4, crate::i18n::mark("Connection"), 330.0, 419.0, 349.0),
+        (
+            REMOTE_PAGE,
+            // i18n: tab title: control MDM from a phone or another computer on the local network
+            crate::i18n::mark("Remote"),
+            380.0,
+            419.0,
+            390.0,
+        ),
     ];
     // IDM's Dial Up / VPN tab is gone (D-021: no modem support; it did nothing); ours, Regional
     // (how dates and times are written), Accounts (#44, debrid services) and Archives (#37) share
@@ -3483,8 +3991,9 @@ fn tabs(ui: &mut Ui, o: Pos2, page: usize) -> Option<usize> {
     ];
     let p = ui.painter().clone();
     let border = winui::HEADER_LINE();
-    let (g, pr) = (tab_row(&p, &G, true), tab_row(&p, &P, false));
-    let (front, back): (&[_], &[_]) = if page < 5 { (&g, &pr) } else { (&pr, &g) };
+    let (g, pr) = (tab_row(&p, &G, false), tab_row(&p, &P, false));
+    let first_row = page < 5 || page == REMOTE_PAGE;
+    let (front, back): (&[_], &[_]) = if first_row { (&g, &pr) } else { (&pr, &g) };
     let mut clicked = None;
     let mut tab = |ui: &mut Ui,
                    (i, label, x0, x1, lx): (usize, &str, f32, f32, f32),
@@ -3524,7 +4033,7 @@ fn tabs(ui: &mut Ui, o: Pos2, page: usize) -> Option<usize> {
             winui::keep_keys(ui, &resp, true, false, false);
             if resp.has_focus() {
                 // Left / Right (mirrored in RTL), Home / End through the pages in order.
-                const ORDER: [usize; 11] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+                const ORDER: [usize; 12] = [0, 1, 2, 3, 4, 11, 5, 6, 7, 8, 9, 10];
                 let at = ORDER.iter().position(|p| *p == i).unwrap_or(0) as isize;
                 let fwd = if winui::rtl() { -1 } else { 1 };
                 let to = if winui::take_key(ui, egui::Key::ArrowRight) {
@@ -3670,22 +4179,42 @@ fn page_title(p: &egui::Painter, font: egui::FontId, x: f32, baseline: f32, engl
     winui::text_font(p, font, x, baseline, shown, LIGHT_TEXT());
 }
 
-/// How wide [`page_title`] draws `english` translated.
-fn page_title_width(p: &egui::Painter, font: egui::FontId, english: &str) -> f32 {
-    winui::text_width_font(p, font, crate::i18n::t(english))
+/// `english` translated, as [`page_title_ending`] draws it in `room` px: one line where it fits,
+/// else two ([`winui::fit_lines`]); and how wide it is drawn.
+fn page_title_lines(
+    p: &egui::Painter,
+    font: egui::FontId,
+    english: &str,
+    room: f32,
+) -> (Vec<String>, f32) {
+    let lines = winui::fit_lines(p, font.clone(), crate::i18n::t(english), room);
+    let w = lines
+        .iter()
+        .map(|l| winui::text_width_font(p, font.clone(), l))
+        .fold(0.0, f32::max);
+    (lines, w)
 }
 
-/// [`page_title`] ending at English x `end` (a control after it needs the room up to there).
+/// A page title's `lines` ([`page_title_lines`]) ending at English x `end` (a control after it
+/// needs the room up to there): one line on `baseline`, two around it (beside the page's icon),
+/// each starting where the wider one does.
 fn page_title_ending(
     p: &egui::Painter,
     font: egui::FontId,
     end: f32,
     baseline: f32,
-    english: &str,
+    lines: &[String],
 ) {
-    let shown = crate::i18n::t(english);
-    let x = end - winui::text_width_font(p, font.clone(), shown);
-    winui::text_font(p, font, x, baseline, shown, LIGHT_TEXT());
+    let w = lines
+        .iter()
+        .map(|l| winui::text_width_font(p, font.clone(), l))
+        .fold(0.0, f32::max);
+    // Bold Tahoma's rows are 15 px apart; two lines share the one line's middle.
+    let first = baseline - 7.5 * (lines.len() as f32 - 1.0);
+    for (i, line) in lines.iter().enumerate() {
+        let y = (first + 15.0 * i as f32).round();
+        winui::text_font(p, font.clone(), end - w, y, line, LIGHT_TEXT());
+    }
 }
 
 /// Group box (`#dcdcdc` frame) with its caption (translated here) at x + 9.
@@ -3850,6 +4379,18 @@ fn readonly(ui: &mut Ui, rc: Rect, value: &str) {
         value,
         LIGHT_PAGE(),
         false,
+        ("options", rc.left() as i32, rc.top() as i32),
+    );
+}
+
+/// [`readonly`] for an address: left to right in every language.
+fn readonly_ltr(ui: &mut Ui, rc: Rect, value: &str) {
+    winui::readonly_field(
+        ui,
+        rc,
+        value,
+        LIGHT_PAGE(),
+        true,
         ("options", rc.left() as i32, rc.top() as i32),
     );
 }

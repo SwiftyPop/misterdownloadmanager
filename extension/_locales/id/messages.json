@@ -119,6 +119,39 @@
   "popup_fix": {
     "message": "Cara memperbaikinya"
   },
+  "popup_declined": {
+    "message": "Diserahkan ke browser: $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "setup.png"
+      }
+    }
+  },
+  "popup_declined_unnamed": {
+    "message": "Unduhan terakhir diserahkan ke browser."
+  },
+  "declined_file_type": {
+    "message": "Jenisnya tidak ada di Opsi → Jenis file."
+  },
+  "declined_site": {
+    "message": "Situsnya ada di Opsi → Jenis file, situs yang diserahkan ke browser."
+  },
+  "declined_address": {
+    "message": "Alamatnya ada di Opsi → Jenis file, alamat yang diserahkan ke browser."
+  },
+  "declined_small": {
+    "message": "Ukurannya lebih kecil dari ukuran minimum di Opsi → Jenis file."
+  },
+  "declined_browser": {
+    "message": "Browser ini tidak dicentang di Opsi → Umum."
+  },
+  "declined_integration_off": {
+    "message": "Integrasi browser lanjutan tidak aktif di Opsi → Umum."
+  },
+  "declined_site_access": {
+    "message": "Ekstensi tidak diizinkan untuk membaca situs ini (akses situs browser)."
+  },
   "popup_alt": {
     "message": "Tahan Alt saat mengeklik tautan untuk membiarkan browser mengunduhnya."
   },
@@ -142,5 +175,56 @@
   },
   "video_drm": {
     "message": "Video dilindungi: tidak dapat disimpan"
+  },
+  "popup_send_to": {
+    "message": "Kirim unduhan ke"
+  },
+  "popup_send_here": {
+    "message": "Komputer ini"
+  },
+  "popup_send_remote": {
+    "message": "Mister Download Manager lain (server)"
+  },
+  "popup_remote_code": {
+    "message": "Kode pemasangan"
+  },
+  "popup_remote_open": {
+    "message": "Buka"
+  },
+  "popup_remote_pair": {
+    "message": "Pasangkan"
+  },
+  "popup_remote_help": {
+    "message": "Buka alamatnya sekali dan terima sertifikatnya, lalu masukkan kode dari Opsi, Jarak Jauh, Pasangkan perangkat (atau misterdownloadmanager-cli pair)."
+  },
+  "status_remote": {
+    "message": "Unduhan masuk ke $address$",
+    "placeholders": {
+      "address": {
+        "content": "$1",
+        "example": "https://192.168.1.10:8463/"
+      }
+    }
+  },
+  "remote_address": {
+    "message": "Masukkan alamat https://-nya."
+  },
+  "remote_unreachable": {
+    "message": "Tidak terjangkau. Buka alamatnya sekali di browser ini dan terima sertifikatnya, lalu coba lagi."
+  },
+  "remote_wrong_code": {
+    "message": "Kode salah."
+  },
+  "remote_no_code": {
+    "message": "Tidak ada kode sekarang: klik Pasangkan perangkat di sana terlebih dahulu."
+  },
+  "remote_too_soon": {
+    "message": "Tunggu sebentar, lalu coba lagi."
+  },
+  "remote_failed": {
+    "message": "Gagal. Coba lagi."
+  },
+  "remote_device_name": {
+    "message": "Ekstensi browser"
   }
 }

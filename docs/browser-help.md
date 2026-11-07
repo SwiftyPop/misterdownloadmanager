@@ -13,10 +13,11 @@ The browser can't find the small helper program it talks to. It is registered wh
 1. Install MDM with the setup from [the download page](https://misterdownloadmanager.com/download.html), and keep **Set up browser integration** ticked.
 2. Already installed? Open MDM, then **Options → General → Test browser integration**, and click **Set it up** if it offers to.
 3. The portable copy can't be connected: it writes nothing outside its own folder. Use the installed copy for browser integration. See [Portable mode](portable.md).
-4. On Linux and macOS, MDM sets browser integration up itself each time it starts: start MDM once.
+4. On Linux and macOS, MDM sets browser integration up itself each time it starts: start MDM once. **Test browser integration** says what went wrong if it couldn't, such as **The helper program the browsers start is missing**: **Set it up** puts it back.
 5. Restart the browser after setting it up.
-6. **Zen, Helium or another browser built on Firefox or Chromium, as your only browser on Linux or macOS?** Older versions of MDM set browser integration up only for the browsers they knew. Update MDM and start it once.
-7. **Zen on Windows:** Zen 1.21.15b and later have a bug of their own that keeps add-ons from reaching their helper program ([zen-browser/desktop#15432](https://github.com/zen-browser/desktop/issues/15432)), with any add-on that uses one. Until Zen fixes it, Zen 1.21.14b works.
+6. **Zen, Helium, Brave Origin or another browser built on Firefox or Chromium, as your only browser on Linux or macOS?** Older versions of MDM set browser integration up only for the browsers they knew (Brave Origin, and the Beta, Dev and Nightly versions of Brave, Chrome and Edge, since 0.3.0). Update MDM and start it once.
+7. **The AppImage on Linux:** the AppImage's files are gone once it quits, so MDM keeps a copy of its helper program in its data folder (`~/.local/share/misterdownloadmanager/browser-host`) and points the browsers there. Start MDM once after moving or renaming the AppImage, or after an AppImage manager (Gear Lever, AppImageLauncher and the like) moved it, so the helper knows where to start it from.
+8. **Zen on Windows:** Zen 1.21.15b and later have a bug of their own that keeps add-ons from reaching their helper program ([zen-browser/desktop#15432](https://github.com/zen-browser/desktop/issues/15432)), with any add-on that uses one. Until Zen fixes it, Zen 1.21.14b works.
 
 ## MDM didn't start in time {#not-running}
 
@@ -34,11 +35,16 @@ The browser started MDM's helper, but it stopped before answering. Security soft
 - Allow `misterdownloadmanager-nmhost.exe` (in MDM's folder) in your antivirus or anti-malware program.
 - Reinstall MDM to restore its files.
 - On Linux, with Firefox or Chromium installed as a Snap, see [Flatpak and Snap browsers](#linux-sandbox).
+- Uninstalled MDM on Linux? Its browser files stay in your home folder: [remove them](getting-started.md#uninstall-linux), and the extension too.
 
 ## MDM doesn't accept this copy of the extension {#forbidden}
 
 MDM's helper serves only its own extension. The browser says this copy isn't one it knows.
 
+- **MDM 0.2.x with the extension from the Chrome Web Store?** The store's copy needs MDM 0.3.0
+  or later. Update MDM with **Help → Check for updates...**. Until then, remove the store's copy
+  and load the one in MDM's folder instead (`extension\chromium`, see
+  [Browser integration](browser-integration.md#chrome-edge-brave-opera-and-vivaldi)).
 - **Two copies installed?** Open the browser's extensions page (`chrome://extensions`, `edge://extensions`, `brave://extensions`) and keep only one **Mister Download Manager**.
 - **A copy from elsewhere?** Remove it and add the extension as MDM's **Add Mister Download Manager to your browser** window shows (see [Browser integration](browser-integration.md)).
 - **An older MDM?** Update MDM: a newer extension may have an ID an old helper doesn't know.

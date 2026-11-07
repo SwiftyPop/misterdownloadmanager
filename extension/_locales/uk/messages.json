@@ -119,6 +119,39 @@
   "popup_fix": {
     "message": "Як це виправити"
   },
+  "popup_declined": {
+    "message": "Залишено браузеру: $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "setup.png"
+      }
+    }
+  },
+  "popup_declined_unnamed": {
+    "message": "Останнє завантаження було залишено браузеру."
+  },
+  "declined_file_type": {
+    "message": "Його тип відсутній у Параметри → Типи файлів."
+  },
+  "declined_site": {
+    "message": "Його сайт є в Параметри → Типи файлів, сайти, залишені браузеру."
+  },
+  "declined_address": {
+    "message": "Його адреса є в Параметри → Типи файлів, адреси, залишені браузеру."
+  },
+  "declined_small": {
+    "message": "Він менший за мінімальний розмір у розділі «Параметри» → «Типи файлів»."
+  },
+  "declined_browser": {
+    "message": "Цей браузер не позначено в Параметри → Загальні."
+  },
+  "declined_integration_off": {
+    "message": "Використовувати розширену інтеграцію з браузером вимкнено в Параметри → Загальні."
+  },
+  "declined_site_access": {
+    "message": "Розширенню не дозволено читати цей сайт (доступ до сайту браузера)."
+  },
   "popup_alt": {
     "message": "Утримуйте Alt, натискаючи посилання, щоб браузер завантажив його."
   },
@@ -142,5 +175,56 @@
   },
   "video_drm": {
     "message": "Захищене відео: його неможливо зберегти"
+  },
+  "popup_send_to": {
+    "message": "Надсилати завантаження до"
+  },
+  "popup_send_here": {
+    "message": "Цей комп’ютер"
+  },
+  "popup_send_remote": {
+    "message": "Інший Mister Download Manager (сервер)"
+  },
+  "popup_remote_code": {
+    "message": "Код з’єднання"
+  },
+  "popup_remote_open": {
+    "message": "Відкрити"
+  },
+  "popup_remote_pair": {
+    "message": "З’єднати"
+  },
+  "popup_remote_help": {
+    "message": "Відкрийте його адресу один раз і прийміть його сертифікат, потім введіть код з його «Параметри», «Віддалений», «З’єднати пристрій» (або misterdownloadmanager-cli pair)."
+  },
+  "status_remote": {
+    "message": "Завантаження надсилаються на $address$",
+    "placeholders": {
+      "address": {
+        "content": "$1",
+        "example": "https://192.168.1.10:8463/"
+      }
+    }
+  },
+  "remote_address": {
+    "message": "Введіть його https:// адресу."
+  },
+  "remote_unreachable": {
+    "message": "Недоступно. Відкрийте його адресу один раз у цьому браузері та прийміть його сертифікат, потім спробуйте ще раз."
+  },
+  "remote_wrong_code": {
+    "message": "Неправильний код."
+  },
+  "remote_no_code": {
+    "message": "Зараз він не показує код: спочатку натисніть «З’єднати пристрій» там."
+  },
+  "remote_too_soon": {
+    "message": "Зачекайте трохи, потім спробуйте ще раз."
+  },
+  "remote_failed": {
+    "message": "Не спрацювало. Спробуйте ще раз."
+  },
+  "remote_device_name": {
+    "message": "Розширення браузера"
   }
 }

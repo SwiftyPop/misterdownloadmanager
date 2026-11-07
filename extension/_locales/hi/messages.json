@@ -119,6 +119,39 @@
   "popup_fix": {
     "message": "इसे कैसे ठीक करें"
   },
+  "popup_declined": {
+    "message": "ब्राउज़र के लिए छोड़ा गया: $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "setup.png"
+      }
+    }
+  },
+  "popup_declined_unnamed": {
+    "message": "पिछला डाउनलोड ब्राउज़र के लिए छोड़ दिया गया था।"
+  },
+  "declined_file_type": {
+    "message": "इसका प्रकार विकल्प → फ़ाइल प्रकार में नहीं है।"
+  },
+  "declined_site": {
+    "message": "इसकी साइट विकल्प → फ़ाइल प्रकार, ब्राउज़र के लिए छोड़ी गई साइटों में है।"
+  },
+  "declined_address": {
+    "message": "इसका पता विकल्प → फ़ाइल प्रकार, ब्राउज़र के लिए छोड़े गए पते में है।"
+  },
+  "declined_small": {
+    "message": "यह विकल्प → फ़ाइल प्रकार में न्यूनतम आकार से छोटा है।"
+  },
+  "declined_browser": {
+    "message": "यह ब्राउज़र विकल्प → सामान्य में टिक नहीं किया गया है।"
+  },
+  "declined_integration_off": {
+    "message": "विकल्प → सामान्य में उन्नत ब्राउज़र एकीकरण का उपयोग करें बंद है।"
+  },
+  "declined_site_access": {
+    "message": "एक्सटेंशन को इस साइट को पढ़ने की अनुमति नहीं है (ब्राउज़र की साइट एक्सेस)।"
+  },
   "popup_alt": {
     "message": "ब्राउज़र को डाउनलोड करने देने के लिए किसी लिंक पर क्लिक करते समय Alt दबाए रखें।"
   },
@@ -142,5 +175,56 @@
   },
   "video_drm": {
     "message": "सुरक्षित वीडियो: इसे सहेजा नहीं जा सकता"
+  },
+  "popup_send_to": {
+    "message": "डाउनलोड यहां भेजें"
+  },
+  "popup_send_here": {
+    "message": "यह कंप्यूटर"
+  },
+  "popup_send_remote": {
+    "message": "कोई अन्य Mister Download Manager (एक सर्वर)"
+  },
+  "popup_remote_code": {
+    "message": "युग्मन कोड"
+  },
+  "popup_remote_open": {
+    "message": "इसे खोलें"
+  },
+  "popup_remote_pair": {
+    "message": "युग्मित करें"
+  },
+  "popup_remote_help": {
+    "message": "इसका पता एक बार खोलें और इसके प्रमाणपत्र को स्वीकार करें, फिर इसके विकल्प, रिमोट, एक डिवाइस युग्मित करें (या misterdownloadmanager-cli pair) से एक कोड दर्ज करें।"
+  },
+  "status_remote": {
+    "message": "डाउनलोड $address$ पर जाते हैं",
+    "placeholders": {
+      "address": {
+        "content": "$1",
+        "example": "https://192.168.1.10:8463/"
+      }
+    }
+  },
+  "remote_address": {
+    "message": "इसका https:// पता दर्ज करें।"
+  },
+  "remote_unreachable": {
+    "message": "पहुंचा नहीं जा सका। इस ब्राउज़र में एक बार इसका पता खोलें और इसके प्रमाणपत्र को स्वीकार करें, फिर पुनः प्रयास करें।"
+  },
+  "remote_wrong_code": {
+    "message": "गलत कोड।"
+  },
+  "remote_no_code": {
+    "message": "यह अभी कोई कोड नहीं दिखाता है: पहले वहां 'एक डिवाइस युग्मित करें' पर क्लिक करें।"
+  },
+  "remote_too_soon": {
+    "message": "थोड़ा प्रतीक्षा करें, फिर पुनः प्रयास करें।"
+  },
+  "remote_failed": {
+    "message": "यह काम नहीं किया। पुनः प्रयास करें।"
+  },
+  "remote_device_name": {
+    "message": "ब्राउज़र एक्सटेंशन"
   }
 }

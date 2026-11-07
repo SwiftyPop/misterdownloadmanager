@@ -119,6 +119,39 @@
   "popup_fix": {
     "message": "Comment le résoudre"
   },
+  "popup_declined": {
+    "message": "Laissé au navigateur : $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "setup.png"
+      }
+    }
+  },
+  "popup_declined_unnamed": {
+    "message": "Le dernier téléchargement a été laissé au navigateur."
+  },
+  "declined_file_type": {
+    "message": "Son type ne figure pas dans Options → Types de fichiers."
+  },
+  "declined_site": {
+    "message": "Son site se trouve dans Options → Types de fichiers, sites laissés au navigateur."
+  },
+  "declined_address": {
+    "message": "Son adresse se trouve dans Options → Types de fichiers, adresses laissées au navigateur."
+  },
+  "declined_small": {
+    "message": "La taille est inférieure à la taille minimale dans Options → Types de fichiers."
+  },
+  "declined_browser": {
+    "message": "Ce navigateur n’est pas coché dans Options → Général."
+  },
+  "declined_integration_off": {
+    "message": "L’option « Utiliser l’intégration avancée du navigateur » est désactivée dans Options → Général."
+  },
+  "declined_site_access": {
+    "message": "L’extension n’est pas autorisée à lire ce site (accès au site du navigateur)."
+  },
   "popup_alt": {
     "message": "Maintenez Alt enfoncé en cliquant sur un lien pour laisser le navigateur le télécharger."
   },
@@ -142,5 +175,56 @@
   },
   "video_drm": {
     "message": "Vidéo protégée : impossible de l’enregistrer"
+  },
+  "popup_send_to": {
+    "message": "Envoyer les téléchargements vers"
+  },
+  "popup_send_here": {
+    "message": "Cet ordinateur"
+  },
+  "popup_send_remote": {
+    "message": "Un autre Mister Download Manager (un serveur)"
+  },
+  "popup_remote_code": {
+    "message": "Code de jumelage"
+  },
+  "popup_remote_open": {
+    "message": "Ouvrir"
+  },
+  "popup_remote_pair": {
+    "message": "Jumeler"
+  },
+  "popup_remote_help": {
+    "message": "Ouvrez son adresse une fois et acceptez son certificat, puis entrez un code depuis ses Options, Distant, Jumeler un appareil (ou misterdownloadmanager-cli pair)."
+  },
+  "status_remote": {
+    "message": "Les téléchargements vont vers $address$",
+    "placeholders": {
+      "address": {
+        "content": "$1",
+        "example": "https://192.168.1.10:8463/"
+      }
+    }
+  },
+  "remote_address": {
+    "message": "Entrez son adresse https://."
+  },
+  "remote_unreachable": {
+    "message": "Non atteint. Ouvrez son adresse une fois dans ce navigateur et acceptez son certificat, puis réessayez."
+  },
+  "remote_wrong_code": {
+    "message": "Code incorrect."
+  },
+  "remote_no_code": {
+    "message": "Il n’affiche aucun code pour l’instant : cliquez d’abord sur Jumeler un appareil."
+  },
+  "remote_too_soon": {
+    "message": "Attendez un instant, puis réessayez."
+  },
+  "remote_failed": {
+    "message": "Échec. Réessayez."
+  },
+  "remote_device_name": {
+    "message": "Extension de navigateur"
   }
 }

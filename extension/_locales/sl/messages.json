@@ -119,6 +119,39 @@
   "popup_fix": {
     "message": "Kako to popraviti"
   },
+  "popup_declined": {
+    "message": "Prepuščeno brskalniku: $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "setup.png"
+      }
+    }
+  },
+  "popup_declined_unnamed": {
+    "message": "Zadnja prenesena datoteka je bila prepuščena brskalniku."
+  },
+  "declined_file_type": {
+    "message": "Njena vrsta ni v Možnosti → Vrste datotek."
+  },
+  "declined_site": {
+    "message": "Njeno spletno mesto je v Možnosti → Vrste datotek, spletna mesta, prepuščena brskalniku."
+  },
+  "declined_address": {
+    "message": "Njen naslov je v Možnosti → Vrste datotek, naslovi, prepuščeni brskalniku."
+  },
+  "declined_small": {
+    "message": "Manjša je od najmanjše velikosti v Možnosti → Vrste datotek."
+  },
+  "declined_browser": {
+    "message": "Ta brskalnik ni označen v Možnosti → Splošno."
+  },
+  "declined_integration_off": {
+    "message": "Uporabi napredno integracijo brskalnika je izklopljeno v Možnosti → Splošno."
+  },
+  "declined_site_access": {
+    "message": "Razširitvi ni dovoljeno brati tega spletnega mesta (dostop brskalnika do spletnega mesta)."
+  },
   "popup_alt": {
     "message": "Držite Alt med klikanjem povezave, da jo prenese brskalnik."
   },
@@ -142,5 +175,56 @@
   },
   "video_drm": {
     "message": "Zaščiten videoposnetek: ni ga mogoče shraniti"
+  },
+  "popup_send_to": {
+    "message": "Pošlji prenose v"
+  },
+  "popup_send_here": {
+    "message": "Ta računalnik"
+  },
+  "popup_send_remote": {
+    "message": "Drugi Mister Download Manager (strežnik)"
+  },
+  "popup_remote_code": {
+    "message": "Koda za seznanjanje"
+  },
+  "popup_remote_open": {
+    "message": "Odpri"
+  },
+  "popup_remote_pair": {
+    "message": "Seznani"
+  },
+  "popup_remote_help": {
+    "message": "Enkrat odprite njegov naslov in sprejmite njegovo potrdilo, nato vnesite kodo iz možnosti, oddaljeno, seznani napravo (ali misterdownloadmanager-cli pair)."
+  },
+  "status_remote": {
+    "message": "Prenosi gredo na $address$",
+    "placeholders": {
+      "address": {
+        "content": "$1",
+        "example": "https://192.168.1.10:8463/"
+      }
+    }
+  },
+  "remote_address": {
+    "message": "Vnesite naslov https://."
+  },
+  "remote_unreachable": {
+    "message": "Ni dosegljivo. Enkrat odprite njegov naslov v tem brskalniku in sprejmite njegovo potrdilo, nato poskusite znova."
+  },
+  "remote_wrong_code": {
+    "message": "Napačna koda."
+  },
+  "remote_no_code": {
+    "message": "Trenutno ne prikazuje kode: najprej kliknite Seznani napravo."
+  },
+  "remote_too_soon": {
+    "message": "Počakajte trenutek, nato poskusite znova."
+  },
+  "remote_failed": {
+    "message": "Ni delovalo. Poskusite znova."
+  },
+  "remote_device_name": {
+    "message": "Razširitev brskalnika"
   }
 }

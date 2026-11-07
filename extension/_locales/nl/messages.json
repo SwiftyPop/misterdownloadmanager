@@ -119,6 +119,39 @@
   "popup_fix": {
     "message": "Oplossen"
   },
+  "popup_declined": {
+    "message": "Aan de browser overgelaten: $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "setup.png"
+      }
+    }
+  },
+  "popup_declined_unnamed": {
+    "message": "De laatste download is aan de browser overgelaten."
+  },
+  "declined_file_type": {
+    "message": "Het type staat niet in Opties → Bestandstypen."
+  },
+  "declined_site": {
+    "message": "De site staat in Opties → Bestandstypen, sites die aan de browser zijn overgelaten."
+  },
+  "declined_address": {
+    "message": "Het adres staat in Opties → Bestandstypen, adressen die aan de browser zijn overgelaten."
+  },
+  "declined_small": {
+    "message": "Het is kleiner dan de minimumgrootte in Opties → Bestandstypen."
+  },
+  "declined_browser": {
+    "message": "Deze browser is niet aangevinkt in Opties → Algemeen."
+  },
+  "declined_integration_off": {
+    "message": "Geavanceerde browserintegratie gebruiken is uitgeschakeld in Opties → Algemeen."
+  },
+  "declined_site_access": {
+    "message": "De extensie mag deze site niet lezen (site-toegang van de browser)."
+  },
   "popup_alt": {
     "message": "Houd Alt ingedrukt terwijl u op een koppeling klikt om de browser deze te laten downloaden."
   },
@@ -142,5 +175,56 @@
   },
   "video_drm": {
     "message": "Beveiligde video: kan niet worden opgeslagen"
+  },
+  "popup_send_to": {
+    "message": "Downloads verzenden naar"
+  },
+  "popup_send_here": {
+    "message": "Deze computer"
+  },
+  "popup_send_remote": {
+    "message": "Een andere Mister Download Manager (een server)"
+  },
+  "popup_remote_code": {
+    "message": "Koppelingscode"
+  },
+  "popup_remote_open": {
+    "message": "Openen"
+  },
+  "popup_remote_pair": {
+    "message": "Koppelen"
+  },
+  "popup_remote_help": {
+    "message": "Open het adres eenmaal en accepteer het certificaat, voer daarna een code in via de Opties, Extern, Een apparaat koppelen (of misterdownloadmanager-cli pair)."
+  },
+  "status_remote": {
+    "message": "Downloads gaan naar $address$",
+    "placeholders": {
+      "address": {
+        "content": "$1",
+        "example": "https://192.168.1.10:8463/"
+      }
+    }
+  },
+  "remote_address": {
+    "message": "Voer het https://-adres in."
+  },
+  "remote_unreachable": {
+    "message": "Niet bereikt. Open het adres eenmaal in deze browser en accepteer het certificaat, probeer het daarna opnieuw."
+  },
+  "remote_wrong_code": {
+    "message": "Onjuiste code."
+  },
+  "remote_no_code": {
+    "message": "Er wordt nu geen code weergegeven: klik daar eerst op Een apparaat koppelen."
+  },
+  "remote_too_soon": {
+    "message": "Wacht even en probeer het daarna opnieuw."
+  },
+  "remote_failed": {
+    "message": "Het is niet gelukt. Probeer het opnieuw."
+  },
+  "remote_device_name": {
+    "message": "Browserextensie"
   }
 }

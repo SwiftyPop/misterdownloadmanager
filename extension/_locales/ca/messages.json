@@ -119,6 +119,39 @@
   "popup_fix": {
     "message": "Com solucionar-ho"
   },
+  "popup_declined": {
+    "message": "Deixat al navegador: $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "setup.png"
+      }
+    }
+  },
+  "popup_declined_unnamed": {
+    "message": "L'última baixada es va deixar al navegador."
+  },
+  "declined_file_type": {
+    "message": "El seu tipus no és a Opcions → Tipus de fitxer."
+  },
+  "declined_site": {
+    "message": "El seu lloc és a Opcions → Tipus de fitxer, llocs deixats al navegador."
+  },
+  "declined_address": {
+    "message": "La seva adreça és a Opcions → Tipus de fitxer, adreces deixades al navegador."
+  },
+  "declined_small": {
+    "message": "És més petit que la mida mínima a Opcions → Tipus de fitxer."
+  },
+  "declined_browser": {
+    "message": "Aquest navegador no està marcat a Opcions → General."
+  },
+  "declined_integration_off": {
+    "message": "L'opció «Utilitza la integració avançada del navegador» està desactivada a Opcions → General."
+  },
+  "declined_site_access": {
+    "message": "L'extensió no té permís per llegir aquest lloc (accés al lloc del navegador)."
+  },
   "popup_alt": {
     "message": "Mantén Alt premut mentre fas clic a un enllaç per deixar que el navegador el baixi."
   },
@@ -142,5 +175,56 @@
   },
   "video_drm": {
     "message": "Vídeo protegit: no es pot desar"
+  },
+  "popup_send_to": {
+    "message": "Enviar baixades a"
+  },
+  "popup_send_here": {
+    "message": "Aquest ordinador"
+  },
+  "popup_send_remote": {
+    "message": "Un altre Mister Download Manager (un servidor)"
+  },
+  "popup_remote_code": {
+    "message": "Codi d'empllaçament"
+  },
+  "popup_remote_open": {
+    "message": "Obrir-lo"
+  },
+  "popup_remote_pair": {
+    "message": "Empllaçar"
+  },
+  "popup_remote_help": {
+    "message": "Obriu la seva adreça una vegada i accepteu el seu certificat, i introduïu un codi des de les seves Opcions, Remot, Empllaçar un dispositiu (o misterdownloadmanager-cli pair)."
+  },
+  "status_remote": {
+    "message": "Les baixades van a $address$",
+    "placeholders": {
+      "address": {
+        "content": "$1",
+        "example": "https://192.168.1.10:8463/"
+      }
+    }
+  },
+  "remote_address": {
+    "message": "Introduïu la seva adreça https://."
+  },
+  "remote_unreachable": {
+    "message": "No s'ha pogut accedir. Obriu la seva adreça una vegada en aquest navegador i accepteu el seu certificat, i torneu-ho a provar."
+  },
+  "remote_wrong_code": {
+    "message": "Codi incorrecte."
+  },
+  "remote_no_code": {
+    "message": "Ara no mostra cap codi: primer feu clic a Empllaçar un dispositiu allà."
+  },
+  "remote_too_soon": {
+    "message": "Espereu un moment i torneu-ho a provar."
+  },
+  "remote_failed": {
+    "message": "No ha funcionat. Torneu-ho a provar."
+  },
+  "remote_device_name": {
+    "message": "Extensió del navegador"
   }
 }

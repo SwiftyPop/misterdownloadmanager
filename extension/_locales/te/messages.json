@@ -119,6 +119,39 @@
   "popup_fix": {
     "message": "దీన్ని ఎలా పరిష్కరించాలి"
   },
+  "popup_declined": {
+    "message": "బ్రౌజర్‌కు వదిలివేయబడింది: $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "setup.png"
+      }
+    }
+  },
+  "popup_declined_unnamed": {
+    "message": "చివరి డౌన్‌లోడ్ బ్రౌజర్‌కు వదిలివేయబడింది."
+  },
+  "declined_file_type": {
+    "message": "దీని రకం ఎంపికలు → ఫైల్ రకాలులో లేదు."
+  },
+  "declined_site": {
+    "message": "దీని సైట్ ఎంపికలు → ఫైల్ రకాలు, బ్రౌజర్‌కు వదిలివేయబడిన సైట్‌లులో ఉంది."
+  },
+  "declined_address": {
+    "message": "దీని చిరునామా ఎంపికలు → ఫైల్ రకాలు, బ్రౌజర్‌కు వదిలివేయబడిన చిరునామాలులో ఉంది."
+  },
+  "declined_small": {
+    "message": "ఇది ఎంపికలు → ఫైల్ రకాలులో కనీస పరిమాణం కంటే చిన్నది."
+  },
+  "declined_browser": {
+    "message": "ఈ బ్రౌజర్ ఎంపికలు → సాధారణలో టిక్ చేయబడలేదు."
+  },
+  "declined_integration_off": {
+    "message": "ఎంపికలు → సాధారణలో అధునాతన బ్రౌజర్ ఇంటిగ్రేషన్‌ను ఉపయోగించు అనేది ఆఫ్ చేయబడింది."
+  },
+  "declined_site_access": {
+    "message": "ఈ సైట్‌ను చదవడానికి పొడిగింపుకు అనుమతి లేదు (బ్రౌజర్ సైట్ యాక్సెస్)."
+  },
   "popup_alt": {
     "message": "బ్రౌజర్ డౌన్‌లోడ్ చేయడానికి లింక్‌ను క్లిక్ చేస్తున్నప్పుడు Altని పట్టుకోండి."
   },
@@ -142,5 +175,56 @@
   },
   "video_drm": {
     "message": "రక్షిత వీడియో: దీన్ని సేవ్ చేయలేము"
+  },
+  "popup_send_to": {
+    "message": "డౌన్‌లోడ్‌లను దీనికి పంపండి"
+  },
+  "popup_send_here": {
+    "message": "ఈ కంప్యూటర్"
+  },
+  "popup_send_remote": {
+    "message": "మరొక Mister Download Manager (ఒక సర్వర్)"
+  },
+  "popup_remote_code": {
+    "message": "జత చేసే కోడ్"
+  },
+  "popup_remote_open": {
+    "message": "దీన్ని తెరవండి"
+  },
+  "popup_remote_pair": {
+    "message": "జత చేయి"
+  },
+  "popup_remote_help": {
+    "message": "దాని చిరునామాను ఒకసారి తెరిచి, దాని సర్టిఫికేట్‌ను ఆమోదించండి, ఆపై దాని ఎంపికలు, రిమోట్, పరికరాన్ని జత చేయి (లేదా misterdownloadmanager-cli pair) నుండి కోడ్‌ను నమోదు చేయండి."
+  },
+  "status_remote": {
+    "message": "డౌన్‌లోడ్‌లు $address$కి వెళ్తాయి",
+    "placeholders": {
+      "address": {
+        "content": "$1",
+        "example": "https://192.168.1.10:8463/"
+      }
+    }
+  },
+  "remote_address": {
+    "message": "దాని https:// చిరునామాను నమోదు చేయండి."
+  },
+  "remote_unreachable": {
+    "message": "చేరలేదు. ఈ బ్రౌజర్‌లో దాని చిరునామాను ఒకసారి తెరిచి, దాని సర్టిఫికేట్‌ను ఆమోదించి, ఆపై మళ్లీ ప్రయత్నించండి."
+  },
+  "remote_wrong_code": {
+    "message": "తప్పు కోడ్."
+  },
+  "remote_no_code": {
+    "message": "ఇది ఇప్పుడు కోడ్‌ను చూపడం లేదు: ముందుగా అక్కడ పరికరాన్ని జత చేయి క్లిక్ చేయండి."
+  },
+  "remote_too_soon": {
+    "message": "ఒక క్షణం వేచి ఉండి, ఆపై మళ్లీ ప్రయత్నించండి."
+  },
+  "remote_failed": {
+    "message": "ఇది పని చేయలేదు. మళ్లీ ప్రయత్నించండి."
+  },
+  "remote_device_name": {
+    "message": "బ్రౌజర్ పొడిగింపు"
   }
 }

@@ -41,6 +41,25 @@ fn startup_file() -> Option<PathBuf> {
     }
 }
 
+/// A headless run (#157) is asked to stop: SIGTERM (`docker stop`, systemd) or SIGINT (Ctrl+C).
+pub async fn terminated() {
+    use tokio::signal::unix::{SignalKind, signal};
+    match (
+        signal(SignalKind::terminate()),
+        signal(SignalKind::interrupt()),
+    ) {
+        (Ok(mut term), Ok(mut int)) => {
+            tokio::select! {
+                _ = term.recv() => {}
+                _ = int.recv() => {}
+            }
+        }
+        _ => {
+            let _ = tokio::signal::ctrl_c().await;
+        }
+    }
+}
+
 pub fn run_at_startup() -> bool {
     startup_file().is_some_and(|f| f.is_file())
 }
@@ -150,66 +169,201 @@ pub fn update_run_at_startup() {
     }
 }
 
+/// The browsers' helper program (crates/nmhost), beside this one.
+const HOST: &str = "misterdownloadmanager-nmhost";
+/// The manifest it writes in each browser's folder.
+const MANIFEST: &str = "com.misterdownloadmanager.host.json";
+/// How long the helper's `--register` has at a start (it writes a few small files).
+const REGISTER_LIMIT: std::time::Duration = std::time::Duration::from_secs(20);
+/// Why the last registration failed, in the system's words (Test browser integration says it);
+/// None once one succeeded.
+static REGISTER_ERROR: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
 /// Browser integration: the host's manifests in every installed browser's folder. There is no
-/// installer step on Linux and macOS, so this runs at each start (a moved app, or a browser
-/// installed since, is picked up).
+/// installer step on Linux and macOS, so this runs at each start, on a thread of its own: a
+/// moved app, a browser installed since, or a helper copy that went missing is repaired.
 ///
 /// From an AppImage, whose programs sit in a mount that is gone once it quits, the host is first
 /// copied to the data folder with the AppImage's path beside it (`app-path`: the host starts
-/// that when MDM isn't running), and registered from there.
+/// that when MDM isn't running), and registered from there (#253).
 pub fn register_browsers() {
-    if let Some(mut cmd) = register_command() {
-        spawn(&mut cmd);
+    let started = std::thread::Builder::new()
+        .name("register-browsers".into())
+        .spawn(|| register_browsers_now(REGISTER_LIMIT));
+    if let Err(e) = started {
+        tracing::warn!("browser integration: not set up, no thread for it: {e}");
     }
 }
 
 /// `register_browsers`, waiting for it to finish, up to `limit` (Test browser integration's Set
-/// it up, on a thread of its own: extension::set_up).
+/// it up, on a thread of its own: extension::set_up). Every failure is logged and kept for Test
+/// browser integration ([`register_error`]).
 pub fn register_browsers_now(limit: std::time::Duration) {
-    if let Some(mut cmd) = register_command() {
-        crate::launch::run_within(&mut cmd, limit);
+    let result = host_program().and_then(|host| run_register(&host, limit));
+    match &result {
+        Ok(said) => tracing::info!("browser integration set up: {said}"),
+        Err(e) => tracing::warn!("browser integration not set up: {e}"),
+    }
+    if let Ok(mut last) = REGISTER_ERROR.lock() {
+        *last = result.err();
     }
 }
 
-/// The host's `--register`, from a copy outside an AppImage's mount when it runs from one.
-fn register_command() -> Option<Command> {
-    let Ok(exe) = std::env::current_exe() else {
-        return None;
-    };
-    let host = exe.with_file_name("misterdownloadmanager-nmhost");
-    let host = match (std::env::var_os("APPIMAGE"), mdm_ipc::data_dir()) {
-        (Some(image), Some(data)) => {
-            let dir = data.join("browser-host");
-            let copy = dir.join("misterdownloadmanager-nmhost");
-            let made = std::fs::create_dir_all(&dir)
-                .and_then(|()| std::fs::copy(&host, &copy).map(|_| ()))
-                .and_then(|()| std::fs::write(dir.join("app-path"), image.as_encoded_bytes()));
-            if made.is_err() {
-                return None;
-            }
-            copy
-        }
-        _ => host,
-    };
-    let mut cmd = Command::new(host);
-    cmd.arg("--register");
-    Some(cmd)
+/// Why the last registration failed, if it did.
+pub fn register_error() -> Option<String> {
+    REGISTER_ERROR.lock().ok().and_then(|e| e.clone())
 }
 
-/// Browser integration is registered: a host manifest in one of the browsers' folders, for this
-/// user or for everyone (Options → General → Test browser integration).
-pub fn host_registered() -> bool {
+/// The helper to register: beside this program, or from an AppImage its copy in the data folder
+/// (made or repaired first).
+fn host_program() -> Result<PathBuf, String> {
+    let exe = std::env::current_exe().map_err(|e| format!("this program's path: {e}"))?;
+    let host = exe.with_file_name(HOST);
+    let Some(image) = std::env::var_os("APPIMAGE").filter(|i| !i.is_empty()) else {
+        return if host.is_file() {
+            Ok(host)
+        } else {
+            Err(format!("{}: not found", host.display()))
+        };
+    };
+    let data = mdm_ipc::data_dir().ok_or("no data folder to copy the helper to")?;
+    install_host_copy(&host, &data.join("browser-host"), Path::new(&image))
+}
+
+/// The AppImage's helper `from` copied into `dir`, with the AppImage's path (`image`) beside it
+/// in `app-path`; each written only when it differs. A copy is written under a temporary name,
+/// made executable, then renamed over the old one: a browser still running the old copy keeps it
+/// (writing over a running program fails with "Text file busy"), and the manifest never names a
+/// half-written file.
+fn install_host_copy(from: &Path, dir: &Path, image: &Path) -> Result<PathBuf, String> {
+    let failed = |what: &Path, e: std::io::Error| format!("{}: {e}", what.display());
+    std::fs::create_dir_all(dir).map_err(|e| failed(dir, e))?;
+    let copy = dir.join(HOST);
+    let program = std::fs::read(from).map_err(|e| failed(from, e))?;
+    if !(runs(&copy) && std::fs::read(&copy).is_ok_and(|old| old == program)) {
+        replace(&copy, &program, 0o755).map_err(|e| failed(&copy, e))?;
+        tracing::info!("browser integration: helper copied to {}", copy.display());
+    }
+    let app_path = dir.join("app-path");
+    let image = image.as_os_str().as_encoded_bytes();
+    if std::fs::read(&app_path).ok().as_deref() != Some(image) {
+        replace(&app_path, image, 0o644).map_err(|e| failed(&app_path, e))?;
+    }
+    Ok(copy)
+}
+
+/// `path` written as `bytes` with `mode`, through a temporary file renamed over it.
+fn replace(path: &Path, bytes: &[u8], mode: u32) -> std::io::Result<()> {
+    use std::io::Write;
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let tmp = path.with_file_name(format!(".{name}.{}.tmp", std::process::id()));
+    let written = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(mode)
+        .open(&tmp)
+        .and_then(|mut f| {
+            f.write_all(bytes)?;
+            // The mode asked for, whatever the umask took away.
+            f.set_permissions(std::fs::Permissions::from_mode(mode))?;
+            f.sync_all()
+        })
+        .and_then(|()| std::fs::rename(&tmp, path));
+    if written.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    written
+}
+
+/// A program file that can be run.
+fn runs(path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::metadata(path).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+}
+
+/// The helper's `--register`: what it says it did, or why it failed.
+fn run_register(host: &Path, limit: std::time::Duration) -> Result<String, String> {
+    use std::io::Read;
+    let mut child = Command::new(host)
+        .arg("--register")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("{}: {e}", host.display()))?;
+    let status = crate::launch::wait_within(&mut child, limit);
+    // A few lines at most: they fit the pipes, so the helper never waits on them.
+    let mut said = String::new();
+    if let Some(mut out) = child.stdout.take() {
+        let _ = out.read_to_string(&mut said);
+    }
+    if let Some(mut err) = child.stderr.take() {
+        said.push('\n');
+        let _ = err.read_to_string(&mut said);
+    }
+    let said = said.split_whitespace().collect::<Vec<_>>().join(" ");
+    match status {
+        Some(s) if s.success() => Ok(said),
+        Some(s) => Err(format!("{} --register: {s}: {said}", host.display())),
+        None => Err(format!(
+            "{} --register: no answer in {limit:?}",
+            host.display()
+        )),
+    }
+}
+
+/// Where browser integration stands (Options → General → Test browser integration): the
+/// manifests in the folders the browsers here read (mdm_ipc::browsers), for this user, or for
+/// everyone when no browser is there for this user, and the helper each names.
+pub fn host_registration() -> crate::extension::Registration {
     let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
     let config = std::env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .filter(|p| p.is_absolute())
         .unwrap_or_else(|| home.join(".config"));
     let mac = cfg!(target_os = "macos");
-    // The folders the native host writes (mdm_ipc::browsers), for this user and for everyone.
-    [false, true]
-        .into_iter()
-        .flat_map(|all| mdm_ipc::browsers::host_dirs(&home, &config, mac, all))
-        .any(|(d, _)| d.join("com.misterdownloadmanager.host.json").is_file())
+    let user = mdm_ipc::browsers::host_dirs(&home, &config, mac, false);
+    if user.is_empty() {
+        registration_in(
+            mdm_ipc::browsers::host_dirs(&home, &config, mac, true),
+            true,
+        )
+    } else {
+        registration_in(user, false)
+    }
+}
+
+/// `host_registration` for the host folders `dirs`, everyone's (`all_users`) or one user's.
+fn registration_in(
+    dirs: Vec<(PathBuf, mdm_ipc::browsers::Family)>,
+    all_users: bool,
+) -> crate::extension::Registration {
+    use crate::extension::Registration;
+    if dirs.is_empty() {
+        return Registration::NoBrowser;
+    }
+    // A browser reads its user folder's manifest first: each must be there and name a helper
+    // that runs. Everyone's folders: one that works is enough.
+    let (mut ready, mut missing, mut broken) = (0, 0, None);
+    for (dir, _) in dirs {
+        let manifest = dir.join(MANIFEST);
+        if !manifest.is_file() {
+            missing += 1;
+            continue;
+        }
+        match mdm_ipc::browsers::manifest_program(&manifest) {
+            Some(p) if runs(&p) => ready += 1,
+            Some(p) => broken = broken.or(Some(p)),
+            None => missing += 1,
+        }
+    }
+    match broken {
+        Some(p) if !(all_users && ready > 0) => Registration::HelperMissing(p),
+        _ if ready > 0 && (all_users || missing == 0) => Registration::Ready,
+        _ => Registration::Missing,
+    }
 }
 
 /// Options → Sounds: play a sound file (macOS: afplay; Linux: PulseAudio / PipeWire's paplay,
@@ -923,31 +1077,296 @@ fn color_scheme(v: &zbus::zvariant::Value) -> Option<u32> {
     }
 }
 
-/// Linux: the windows run through X11 (XWayland, in a Wayland session) when there is one, unless
-/// `MDM_WAYLAND=1` (#50). Wayland lets no program place its own windows, and MDM's menus and drop
-/// lists are windows it places under what was clicked: Wayland put them in the middle of the
-/// screen. The hook for `NativeOptions::event_loop_builder`; None: winit's own choice.
+/// Linux: a library winit loads when the window opens (not linked: the program starts without
+/// it, and the window then can't open), with its package in each family of distributions.
 #[cfg(target_os = "linux")]
-pub fn prefer_x11() -> Option<eframe::EventLoopBuilderHook> {
-    let set = |name: &str| std::env::var_os(name).is_some_and(|v| !v.is_empty());
-    let keep = std::env::var_os("MDM_WAYLAND").is_some_and(|v| v == "1");
-    let x11 = set("WAYLAND_DISPLAY") && set("DISPLAY") && !keep;
-    let _ = ON_WAYLAND.set(set("WAYLAND_DISPLAY") && !x11);
-    x11.then(|| -> eframe::EventLoopBuilderHook {
-        Box::new(|b| {
-            use winit::platform::x11::EventLoopBuilderExtX11;
-            b.with_x11();
-        })
-    })
+#[derive(Debug, PartialEq, Eq)]
+pub struct WindowLib {
+    /// The names winit's loaders try, the usual one first.
+    pub names: &'static [&'static str],
+    /// Its package on Debian and Ubuntu, Fedora (and RHEL), openSUSE, Arch, Alpine.
+    packages: [&'static str; 5],
 }
 
 #[cfg(target_os = "linux")]
-static ON_WAYLAND: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+const XKBCOMMON: WindowLib = WindowLib {
+    names: &["libxkbcommon.so.0", "libxkbcommon.so"],
+    packages: [
+        "libxkbcommon0",
+        "libxkbcommon",
+        "libxkbcommon0",
+        "libxkbcommon",
+        "libxkbcommon",
+    ],
+};
 
-/// Linux: MDM's windows are Wayland's (not X11's or XWayland's), as `prefer_x11` decided.
+/// What an X11 window (or XWayland's) needs: the keyboard (xkbcommon-dl) and Xlib's parts
+/// (x11-dl), as winit opens them.
+#[cfg(target_os = "linux")]
+const X11_LIBS: &[WindowLib] = &[
+    WindowLib {
+        names: &["libxkbcommon-x11.so.0", "libxkbcommon-x11.so"],
+        packages: [
+            "libxkbcommon-x11-0",
+            "libxkbcommon-x11",
+            "libxkbcommon-x11-0",
+            "libxkbcommon-x11",
+            "libxkbcommon",
+        ],
+    },
+    XKBCOMMON,
+    WindowLib {
+        names: &["libX11.so.6", "libX11.so"],
+        packages: ["libx11-6", "libX11", "libX11-6", "libx11", "libx11"],
+    },
+    WindowLib {
+        names: &["libX11-xcb.so.1", "libX11-xcb.so"],
+        packages: [
+            "libx11-xcb1",
+            "libX11-xcb",
+            "libX11-xcb1",
+            "libx11",
+            "libx11",
+        ],
+    },
+    WindowLib {
+        names: &["libXcursor.so.1", "libXcursor.so"],
+        packages: [
+            "libxcursor1",
+            "libXcursor",
+            "libXcursor1",
+            "libxcursor",
+            "libxcursor",
+        ],
+    },
+    WindowLib {
+        names: &["libXi.so.6", "libXi.so"],
+        packages: ["libxi6", "libXi", "libXi6", "libxi", "libxi"],
+    },
+];
+
+/// What a Wayland window needs: the keyboard, and Wayland's client library (winit loads it).
+#[cfg(target_os = "linux")]
+const WAYLAND_LIBS: &[WindowLib] = &[
+    XKBCOMMON,
+    WindowLib {
+        names: &["libwayland-client.so.0", "libwayland-client.so"],
+        packages: [
+            "libwayland-client0",
+            "libwayland-client",
+            "libwayland-client0",
+            "wayland",
+            "wayland-libs-client",
+        ],
+    },
+];
+
+/// Linux: the display system MDM's windows use, decided once (`window_system`), and what the
+/// system lacks for it.
+#[cfg(target_os = "linux")]
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct WindowSystem {
+    /// Wayland's windows, not X11's (or XWayland's).
+    pub wayland: bool,
+    /// X11 is chosen in a Wayland session (XWayland): winit is told so.
+    x11_over_wayland: bool,
+    /// X11 was MDM's choice, but these are missing: Wayland's windows instead.
+    pub x11_missing: Vec<&'static WindowLib>,
+    /// The chosen system lacks these: no window can open (#265).
+    pub missing: Vec<&'static WindowLib>,
+}
+
+/// The windows run through X11 (XWayland, in a Wayland session) when there is one, unless
+/// `MDM_WAYLAND=1` (#50). Wayland lets no program place its own windows, and MDM's menus and drop
+/// lists are windows it places under what was clicked: Wayland put them in the middle of the
+/// screen. Without the libraries X11's windows need, Wayland's when there is one (#265).
+/// `loads`: whether a library can be loaded.
+#[cfg(target_os = "linux")]
+fn choose_window_system(
+    wayland_session: bool,
+    x11_session: bool,
+    keep_wayland: bool,
+    loads: impl Fn(&WindowLib) -> bool,
+) -> WindowSystem {
+    let lacking = |libs: &'static [WindowLib]| libs.iter().filter(|l| !loads(l)).collect();
+    let mut ws = WindowSystem::default();
+    if x11_session && !(wayland_session && keep_wayland) {
+        ws.missing = lacking(X11_LIBS);
+        if ws.missing.is_empty() {
+            ws.x11_over_wayland = wayland_session;
+            return ws;
+        }
+        if !wayland_session {
+            return ws;
+        }
+        ws.x11_missing = std::mem::take(&mut ws.missing);
+    }
+    if wayland_session {
+        ws.wayland = true;
+        ws.missing = lacking(WAYLAND_LIBS);
+    }
+    ws
+}
+
+/// Linux: the display system MDM's windows use (see `choose_window_system`), decided at the
+/// first question.
+#[cfg(target_os = "linux")]
+pub fn window_system() -> &'static WindowSystem {
+    static CHOSEN: std::sync::OnceLock<WindowSystem> = std::sync::OnceLock::new();
+    CHOSEN.get_or_init(|| {
+        let set = |name: &str| std::env::var_os(name).is_some_and(|v| !v.is_empty());
+        choose_window_system(
+            set("WAYLAND_DISPLAY"),
+            set("DISPLAY"),
+            std::env::var_os("MDM_WAYLAND").is_some_and(|v| v == "1"),
+            |lib| lib.names.iter().any(|n| loads(n)),
+        )
+    })
+}
+
+/// Whether the library `name` can be loaded, as winit's loaders would load it (and unloaded
+/// again at once).
+#[cfg(target_os = "linux")]
+#[allow(unsafe_code)]
+fn loads(name: &str) -> bool {
+    let Ok(name) = std::ffi::CString::new(name) else {
+        return false;
+    };
+    // SAFETY: a NUL-terminated name; the handle, when there is one, is closed right after and
+    // nothing of the library is used.
+    let handle = unsafe { libc::dlopen(name.as_ptr(), libc::RTLD_LAZY | libc::RTLD_LOCAL) };
+    if handle.is_null() {
+        return false;
+    }
+    // SAFETY: the handle dlopen just gave.
+    unsafe { libc::dlclose(handle) };
+    true
+}
+
+/// The hook for `NativeOptions::event_loop_builder` that opens the windows where
+/// `window_system` chose; None: winit's own choice (the same).
+#[cfg(target_os = "linux")]
+pub fn event_loop_hook() -> Option<eframe::EventLoopBuilderHook> {
+    let ws = window_system();
+    if ws.x11_over_wayland {
+        Some(Box::new(|b| {
+            use winit::platform::x11::EventLoopBuilderExtX11;
+            b.with_x11();
+        }))
+    } else if ws.wayland {
+        Some(Box::new(|b| {
+            use winit::platform::wayland::EventLoopBuilderExtWayland;
+            b.with_wayland();
+        }))
+    } else {
+        None
+    }
+}
+
+/// Linux: MDM's windows are Wayland's (not X11's or XWayland's), as `window_system` decided.
 #[cfg(target_os = "linux")]
 pub fn on_wayland() -> bool {
-    *ON_WAYLAND.get_or_init(|| std::env::var_os("WAYLAND_DISPLAY").is_some_and(|v| !v.is_empty()))
+    window_system().wayland
+}
+
+/// The family of distributions /etc/os-release (`os_release`) names: the index of its packages
+/// in `WindowLib::packages`, and how it installs one.
+#[cfg(target_os = "linux")]
+fn installer(os_release: &str) -> Option<(usize, &'static str)> {
+    let field = |key: &str| {
+        os_release
+            .lines()
+            .find_map(|l| l.strip_prefix(key)?.strip_prefix('='))
+            .map(|v| v.trim().trim_matches(['"', '\'']).to_lowercase())
+            .unwrap_or_default()
+    };
+    let ids = format!("{} {}", field("ID"), field("ID_LIKE"));
+    let is = |name: &str| ids.split_whitespace().any(|id| id == name);
+    if is("debian") || is("ubuntu") {
+        Some((0, "sudo apt install"))
+    } else if is("suse") || is("opensuse") || ids.contains("opensuse") {
+        Some((2, "sudo zypper install"))
+    } else if is("fedora") || is("rhel") || is("centos") {
+        Some((1, "sudo dnf install"))
+    } else if is("arch") {
+        Some((3, "sudo pacman -S"))
+    } else if is("alpine") {
+        Some((4, "sudo apk add"))
+    } else {
+        None
+    }
+}
+
+/// The command that installs `libs` on the distribution /etc/os-release (`os_release`) names;
+/// None for one MDM doesn't know.
+#[cfg(target_os = "linux")]
+fn install_command(libs: &[&WindowLib], os_release: &str) -> Option<String> {
+    let (family, command) = installer(os_release)?;
+    let mut packages: Vec<&str> = Vec::new();
+    for lib in libs {
+        if !packages.contains(&lib.packages[family]) {
+            packages.push(lib.packages[family]);
+        }
+    }
+    Some(format!("{command} {}", packages.join(" ")))
+}
+
+/// What the system lacks for the windows, and how to install it, in the interface language
+/// (#265): `opening` says the window can't open, else that X11's windows fell back to Wayland's.
+#[cfg(target_os = "linux")]
+pub fn missing_text(libs: &[&WindowLib], opening: bool) -> String {
+    use crate::i18n::{fmt, ltr, t};
+    let names: Vec<&str> = libs.iter().map(|l| l.names[0]).collect();
+    let names = ltr(&names.join(", "));
+    let what = if opening {
+        // i18n: Linux, at start, on the terminal and in a message box: a library the window needs isn't installed; {libraries} = its file names (libxkbcommon-x11.so.0…), left as they are
+        t("Mister Download Manager can't open its window: this system lacks {libraries}.")
+    } else {
+        // i18n: Linux, at start, on the terminal: the libraries an X11 window needs aren't installed, so the window opens through Wayland instead, where menus can't be placed under what was clicked; {libraries} = their file names, left as they are
+        t(
+            "Mister Download Manager's X11 window needs {libraries}, which this system lacks: it opens on Wayland instead, where its menus may open away from their titles.",
+        )
+    };
+    let what = fmt(what, &[("libraries", &names)]);
+    let release = std::fs::read_to_string("/etc/os-release").unwrap_or_default();
+    let how = match install_command(libs, &release) {
+        Some(command) => fmt(
+            // i18n: Linux, after a missing library's name: {command} = the terminal command that installs it ("sudo apt install libxkbcommon-x11-0"), left as it is
+            t("To install what's missing: {command}"),
+            &[("command", &ltr(&command))],
+        ),
+        // i18n: Linux, after a missing library's name, on a distribution MDM doesn't know
+        None => t("Install what's missing from your distribution's packages.").to_owned(),
+    };
+    format!("{what}\n{how}")
+}
+
+/// Says `text` on the terminal, in the log and, when a display is there, in a message box
+/// (zenity or kdialog, the first there): MDM's own window can't open.
+#[cfg(target_os = "linux")]
+pub fn tell_window_failed(text: &str) {
+    eprintln!("{text}");
+    tracing::error!("{text}");
+    let title = "Mister Download Manager";
+    let boxes: [(&str, Vec<&str>); 2] = [
+        (
+            "zenity",
+            vec!["--error", "--no-markup", "--title", title, "--text", text],
+        ),
+        ("kdialog", vec!["--title", title, "--error", text]),
+    ];
+    for (tool, args) in boxes {
+        let shown = Command::new(tool)
+            .args(args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+        // Not there, or it couldn't show (no display): the next one.
+        if shown.is_ok_and(|s| s.code().is_some_and(|c| c != 255 && c != 127)) {
+            return;
+        }
+    }
 }
 
 /// Linux: a tray host is there to show MDM's icon (a StatusNotifierWatcher on the session bus:
@@ -1423,6 +1842,116 @@ fn set_xattr(path: &Path, name: &str, value: &str) {
 mod tests {
     use zbus::zvariant::Value;
 
+    use super::{WindowLib, X11_LIBS, choose_window_system, install_command};
+
+    const X11_KEYBOARD: &str = "libxkbcommon-x11.so.0";
+
+    /// Every library loads but X11's keyboard.
+    fn without_x11_keyboard(lib: &WindowLib) -> bool {
+        lib.names[0] != X11_KEYBOARD
+    }
+
+    /// #265: without libxkbcommon-x11, an X11 session can't open the window (said, not a
+    /// panic); a Wayland session opens it on Wayland instead; with everything there, X11 as
+    /// before (#50).
+    #[test]
+    fn a_missing_x11_library_is_named_or_wayland_used() {
+        let x11_only = choose_window_system(false, true, false, without_x11_keyboard);
+        assert!(!x11_only.wayland);
+        let names: Vec<&str> = x11_only.missing.iter().map(|l| l.names[0]).collect();
+        assert_eq!(names, [X11_KEYBOARD]);
+
+        let both = choose_window_system(true, true, false, without_x11_keyboard);
+        assert!(both.wayland && both.missing.is_empty(), "{both:?}");
+        assert_eq!(both.x11_missing.len(), 1);
+        assert!(!both.x11_over_wayland);
+
+        let fine = choose_window_system(true, true, false, |_| true);
+        assert!(!fine.wayland && fine.x11_over_wayland && fine.missing.is_empty());
+        let asked = choose_window_system(true, true, true, |_| true);
+        assert!(asked.wayland && !asked.x11_over_wayland && asked.x11_missing.is_empty());
+
+        // Nothing loads: on Wayland, its own libraries are named.
+        let none = choose_window_system(true, false, false, |_| false);
+        assert!(none.wayland);
+        assert_eq!(none.missing[0].names[0], "libxkbcommon.so.0");
+    }
+
+    /// The package to install, by the distribution's family (/etc/os-release's ID and ID_LIKE).
+    #[test]
+    fn the_install_command_fits_the_distribution() {
+        let keyboard = [&X11_LIBS[0]];
+        let cases = [
+            (
+                "ID=debian
+",
+                Some("sudo apt install libxkbcommon-x11-0"),
+            ),
+            (
+                "ID=linuxmint
+ID_LIKE=\"ubuntu debian\"
+",
+                Some("sudo apt install libxkbcommon-x11-0"),
+            ),
+            (
+                "ID=fedora
+",
+                Some("sudo dnf install libxkbcommon-x11"),
+            ),
+            (
+                "ID=\"rocky\"
+ID_LIKE=\"rhel centos fedora\"
+",
+                Some("sudo dnf install libxkbcommon-x11"),
+            ),
+            (
+                "ID=\"opensuse-tumbleweed\"
+ID_LIKE=\"opensuse suse\"
+",
+                Some("sudo zypper install libxkbcommon-x11-0"),
+            ),
+            (
+                "ID=arch
+",
+                Some("sudo pacman -S libxkbcommon-x11"),
+            ),
+            (
+                "ID=endeavouros
+ID_LIKE=arch
+",
+                Some("sudo pacman -S libxkbcommon-x11"),
+            ),
+            (
+                "ID=alpine
+",
+                Some("sudo apk add libxkbcommon"),
+            ),
+            (
+                "ID=nixos
+",
+                None,
+            ),
+            ("", None),
+        ];
+        for (release, want) in cases {
+            assert_eq!(
+                install_command(&keyboard, release).as_deref(),
+                want,
+                "{release}"
+            );
+        }
+        // Two libraries from one package are asked once (Arch's libx11).
+        let xlib = [&X11_LIBS[2], &X11_LIBS[3]];
+        assert_eq!(
+            install_command(
+                &xlib, "ID=arch
+"
+            )
+            .as_deref(),
+            Some("sudo pacman -S libx11")
+        );
+    }
+
     /// `ReadOne` answers the number, `Read` the number wrapped in one more variant.
     #[test]
     fn color_scheme_unwraps_the_portals_answers() {
@@ -1616,6 +2145,139 @@ mod tests {
         // The folder opened after the limit, not after gdbus's 30 s.
         assert!(took < Duration::from_secs(20), "took {took:?}");
         let _ = std::fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod host_copy_tests {
+    use super::{HOST, MANIFEST, install_host_copy, registration_in, runs};
+    use crate::extension::Registration;
+    use mdm_ipc::browsers::Family;
+    use std::path::Path;
+
+    fn program(dir: &Path, name: &str, body: &str) -> std::path::PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let p = dir.join(name);
+        std::fs::write(&p, format!("#!/bin/sh\n{body}\n")).unwrap();
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
+        p
+    }
+
+    /// #253: the AppImage's helper is copied out of its mount, executable, with the AppImage's
+    /// path beside it; a copy that went missing is made again at the next start.
+    #[test]
+    fn the_helper_is_copied_and_repaired() {
+        let t = tempfile::tempdir().unwrap();
+        let from = program(t.path(), "mount-host", "echo one");
+        let dir = t.path().join("data/browser-host");
+        let image = Path::new("/home/u/Apps/MDM.AppImage");
+        let copy = install_host_copy(&from, &dir, image).unwrap();
+        assert_eq!(copy, dir.join(HOST));
+        assert!(runs(&copy));
+        assert_eq!(std::fs::read(&copy).unwrap(), std::fs::read(&from).unwrap());
+        assert_eq!(
+            std::fs::read_to_string(dir.join("app-path")).unwrap(),
+            "/home/u/Apps/MDM.AppImage"
+        );
+        // Moved by an AppImage manager, and the copy deleted: both put right.
+        std::fs::remove_file(&copy).unwrap();
+        let moved = Path::new("/home/u/Applications/mdm.appimage");
+        install_host_copy(&from, &dir, moved).unwrap();
+        assert!(runs(&copy));
+        assert_eq!(
+            std::fs::read_to_string(dir.join("app-path")).unwrap(),
+            moved.to_str().unwrap()
+        );
+        // Not executable any more: made so again.
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&copy, std::fs::Permissions::from_mode(0o644)).unwrap();
+        }
+        assert!(!runs(&copy));
+        install_host_copy(&from, &dir, moved).unwrap();
+        assert!(runs(&copy));
+        // Nothing temporary is left behind.
+        let left: Vec<_> = std::fs::read_dir(&dir).unwrap().flatten().collect();
+        assert_eq!(left.len(), 2, "{left:?}");
+    }
+
+    /// #253: a browser still runs the old copy (writing over a running program fails with "Text
+    /// file busy"): the new one replaces it all the same, and the old one keeps running.
+    #[test]
+    fn the_helper_is_replaced_while_a_browser_runs_it() {
+        let t = tempfile::tempdir().unwrap();
+        let dir = t.path().join("browser-host");
+        std::fs::create_dir_all(&dir).unwrap();
+        // A real program (a script would run as the shell, its file only read).
+        let old = dir.join(HOST);
+        std::fs::copy("/bin/sleep", &old).unwrap();
+        let mut running = std::process::Command::new(&old).arg("30").spawn().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        assert!(
+            std::fs::write(&old, b"x").is_err() || cfg!(target_os = "macos"),
+            "Linux refuses to write over a running program"
+        );
+        let from = program(t.path(), "new-host", "echo two");
+        let copy = install_host_copy(&from, &dir, Path::new("/x.AppImage")).unwrap();
+        assert_eq!(std::fs::read(&copy).unwrap(), std::fs::read(&from).unwrap());
+        assert!(
+            running.try_wait().unwrap().is_none(),
+            "the old copy still runs"
+        );
+        let _ = running.kill();
+        let _ = running.wait();
+    }
+
+    #[test]
+    fn a_copy_that_cant_be_made_says_why() {
+        let t = tempfile::tempdir().unwrap();
+        let err = install_host_copy(
+            &t.path().join("no-such-host"),
+            &t.path().join("browser-host"),
+            Path::new("/x.AppImage"),
+        )
+        .unwrap_err();
+        assert!(err.contains("no-such-host"), "{err}");
+    }
+
+    /// Test browser integration: every user folder must have the manifest, naming a helper that
+    /// runs; a manifest naming a missing helper is said as such (#253).
+    #[test]
+    fn registration_reads_the_manifests_and_their_helper() {
+        let t = tempfile::tempdir().unwrap();
+        let helper = program(t.path(), HOST, "true");
+        let (a, b) = (t.path().join("a"), t.path().join("b"));
+        for d in [&a, &b] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        let write = |dir: &Path, path: &Path| {
+            let json =
+                serde_json::json!({ "name": "com.misterdownloadmanager.host", "path": path });
+            std::fs::write(dir.join(MANIFEST), json.to_string()).unwrap();
+        };
+        let dirs = || vec![(a.clone(), Family::Chromium), (b.clone(), Family::Gecko)];
+        assert_eq!(registration_in(vec![], false), Registration::NoBrowser);
+        assert_eq!(registration_in(dirs(), false), Registration::Missing);
+        write(&a, &helper);
+        assert_eq!(
+            registration_in(dirs(), false),
+            Registration::Missing,
+            "one browser's folder lacks it"
+        );
+        assert_eq!(
+            registration_in(dirs(), true),
+            Registration::Ready,
+            "everyone's: one is enough"
+        );
+        write(&b, &helper);
+        assert_eq!(registration_in(dirs(), false), Registration::Ready);
+        let gone = t.path().join("gone/misterdownloadmanager-nmhost");
+        write(&b, &gone);
+        assert_eq!(
+            registration_in(dirs(), false),
+            Registration::HelperMissing(gone.clone())
+        );
+        assert_eq!(registration_in(dirs(), true), Registration::Ready);
     }
 }
 

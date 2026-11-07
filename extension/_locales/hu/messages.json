@@ -119,6 +119,39 @@
   "popup_fix": {
     "message": "Hogyan javítható"
   },
+  "popup_declined": {
+    "message": "Böngészőnek meghagyva: $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1",
+        "example": "setup.png"
+      }
+    }
+  },
+  "popup_declined_unnamed": {
+    "message": "Az utolsó letöltés a böngészőnek lett meghagyva."
+  },
+  "declined_file_type": {
+    "message": "Típusa nincs a Beállítások → Fájltípusok menüpontban."
+  },
+  "declined_site": {
+    "message": "Webhelye a Beállítások → Fájltípusok, böngészőnek meghagyott webhelyek között van."
+  },
+  "declined_address": {
+    "message": "Címe a Beállítások → Fájltípusok, böngészőnek meghagyott címek között van."
+  },
+  "declined_small": {
+    "message": "Kisebb, mint a minimális méret a Beállítások → Fájltípusok menüpontban."
+  },
+  "declined_browser": {
+    "message": "Ez a böngésző nincs bejelölve a Beállítások → Általános menüpontban."
+  },
+  "declined_integration_off": {
+    "message": "A Speciális böngészőintegráció használata ki van kapcsolva a Beállítások → Általános menüpontban."
+  },
+  "declined_site_access": {
+    "message": "A bővítmény nem olvashatja ezt a webhelyet (a böngésző webhely-hozzáférése)."
+  },
   "popup_alt": {
     "message": "Tartsa lenyomva az Alt billentyűt, miközben egy hivatkozásra kattint, hogy a böngésző töltse le azt."
   },
@@ -142,5 +175,56 @@
   },
   "video_drm": {
     "message": "Védett videó: nem menthető"
+  },
+  "popup_send_to": {
+    "message": "Letöltések küldése ide"
+  },
+  "popup_send_here": {
+    "message": "Ez a számítógép"
+  },
+  "popup_send_remote": {
+    "message": "Másik Mister Download Manager (kiszolgáló)"
+  },
+  "popup_remote_code": {
+    "message": "Párosítási kód"
+  },
+  "popup_remote_open": {
+    "message": "Megnyitás"
+  },
+  "popup_remote_pair": {
+    "message": "Párosítás"
+  },
+  "popup_remote_help": {
+    "message": "Nyissa meg egyszer a címét, és fogadja el a tanúsítványát, majd adja meg a kódot a Beállítások, Távoli, Eszköz párosítása (vagy misterdownloadmanager-cli pair) menüpontból."
+  },
+  "status_remote": {
+    "message": "A letöltések ide mennek: $address$",
+    "placeholders": {
+      "address": {
+        "content": "$1",
+        "example": "https://192.168.1.10:8463/"
+      }
+    }
+  },
+  "remote_address": {
+    "message": "Adja meg a https:// címét."
+  },
+  "remote_unreachable": {
+    "message": "Nem érhető el. Nyissa meg egyszer a címét ebben a böngészőben, és fogadja el a tanúsítványát, majd próbálja újra."
+  },
+  "remote_wrong_code": {
+    "message": "Hibás kód."
+  },
+  "remote_no_code": {
+    "message": "Most nem mutat kódot: először kattintson ott az Eszköz párosítása gombra."
+  },
+  "remote_too_soon": {
+    "message": "Várjon egy pillanatot, majd próbálja újra."
+  },
+  "remote_failed": {
+    "message": "Nem sikerült. Próbálja újra."
+  },
+  "remote_device_name": {
+    "message": "Böngészőbővítmény"
   }
 }

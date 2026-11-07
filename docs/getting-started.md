@@ -32,7 +32,28 @@ We haven't tried them ourselves yet, so you'd be among the first: please
 
 Browser integration is set up by MDM itself at each start on Linux and macOS (the browsers installed then are found); add the extension as in [Browser integration](browser-integration.md). Firefox installed as a Snap (Ubuntu's) reaches MDM once you allow it; other Snap and Flatpak browsers can't (see [Flatpak and Snap browsers](browser-help.md#linux-sandbox)).
 
-In a Wayland session (GNOME, KDE Plasma and others), MDM's windows run through XWayland when it is there: Wayland doesn't let a program place its own windows, so MDM's menus and drop-down lists would open in the middle of the screen. To run on Wayland itself anyway, start it with `MDM_WAYLAND=1 misterdownloadmanager`.
+In a Wayland session (GNOME, KDE Plasma and others), MDM's windows run through XWayland when it is there: Wayland doesn't let a program place its own windows, so MDM's menus and drop-down lists would open in the middle of the screen. To run on Wayland itself anyway, start it with `MDM_WAYLAND=1 misterdownloadmanager`. If the system lacks a library X11 windows need (such as libxkbcommon-x11, which the .deb and .rpm bring but the AppImage and the tar.gz can't), MDM opens on Wayland instead; with no window system it can use, it names what's missing and the command that installs it.
+
+#### Uninstall on Linux {#uninstall-linux}
+
+`sudo apt remove misterdownloadmanager` (or `sudo dnf remove misterdownloadmanager`) removes the
+programs; for the AppImage or the tar.gz, delete the file or the folder. What MDM keeps in your
+home folder stays, as with any package: your list and settings
+(`~/.local/share/misterdownloadmanager`) and the small files that tell your browsers where MDM's
+helper is. A package can't remove those: it never touches home folders. Without MDM they lead
+nowhere, so the extension says it can't reach MDM. To remove them as well, run this as each user
+who used MDM, **before** uninstalling:
+
+```sh
+misterdownloadmanager-nmhost --unregister
+```
+
+(From the AppImage: `~/.local/share/misterdownloadmanager/browser-host/misterdownloadmanager-nmhost --unregister`.)
+Already uninstalled? This removes the same files:
+
+```sh
+find ~/.mozilla ~/.librewolf ~/.config -name com.misterdownloadmanager.host.json -delete 2>/dev/null
+```
 
 ## Install with the setup
 
@@ -125,6 +146,15 @@ MDM follows your system: when Windows (or your desktop's light/dark preference o
 - **Breeze**: KDE Plasma's look: rounded corners, buttons and boxes that take the accent's edge
   under the pointer or when focused, KDE's check boxes and focus frame, KDE's title bar with the
   title centred and round buttons (on Windows, where MDM draws it), and KDE's Breeze icons.
+- **Luna**: Windows XP's look: buttons shaded from white with an orange glow under the pointer,
+  green ticks, square text boxes, progress in green blocks, a deep blue title bar with the title
+  in bold (on Windows, where MDM draws it), and colourful icons drawn for MDM in that manner.
+- **Aero**: Windows 7's look: glossy buttons that turn light blue under the pointer, quiet check
+  boxes, a glossy green progress bar, a glassy title bar with the title on a soft glow (on
+  Windows), and glossy icons drawn for MDM in that manner.
+- **Aqua**: Mac OS X's look: gel buttons round at the ends (the default one blue), glossy check
+  boxes, a blue focus ring, a blue gel progress bar, a grey title bar with small round buttons
+  (on Windows), and icons drawn for MDM in that manner.
 
 ![View → Theme open: Classic, Native, High contrast, Metro, Adwaita and Breeze](images/help/view-theme.webp)
 *View → Theme switches at once, keeping the layout.*
@@ -143,9 +173,10 @@ MDM follows your system: when Windows (or your desktop's light/dark preference o
 Each has a light and a dark side: **Dark Mode support** and **Always dark** choose between
 them as before. Theme files you put in the themes folder (**View → Theme → Open themes folder**)
 are listed there too. A theme in a folder of its own (`<name>/theme.toml`) can bring its icons in
-`icons/16` and `icons/24`, each named for what it shows (`tb-add-url.svg`, `cat-music.png`…):
-SVG or PNG files keep their colours, and `-symbolic.svg` ones, as GNOME and KDE name them, take
-the theme's text colour.
+`icons/16` and `icons/24` (and, for PNG pictures, `icons/32` and `icons/48`, used on a screen
+scaled to 150 % and more), each named for what it shows (`tb-add-url.svg`, `cat-music.png`…):
+SVG or PNG files keep their colours, and `-symbolic.svg` or `-symbolic.png` ones, as GNOME and
+KDE name them, take the theme's text colour.
 
 ## The tray icon
 
